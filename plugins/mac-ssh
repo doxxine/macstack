@@ -1,0 +1,62 @@
+#!/bin/zsh
+# MACSTACK PLUGIN: mac-ssh
+# STYLE: UNIX / SNAKE_CASE
+# SHELL: ZSH
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+# LOAD SHARED LIB
+if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
+  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
+  exit 1
+fi
+source "$MACROOT/lib/shared.zsh"
+macstack_load_config || true
+
+MACSTACK_MODE="subcommand:1"
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)"
+source "$MACROOT/lib/shared.zsh"
+
+case "$fn" in
+
+"ssh:key")
+  echo -e "${COLOR_INFO}>> public key (also copied to clipboard):${COLOR_RESET}"
+  cat "$HOME/.ssh/id_rsa.pub" | tee >(pbcopy)
+  ;;
+
+  "ssh:df")
+    echo -e "${COLOR_INFO}>> downloading file via scp${COLOR_RESET}"
+    scp "$1" .
+    ;;
+
+  "ssh:ddir")
+    echo -e "${COLOR_INFO}>> downloading folder via scp -r${COLOR_RESET}"
+    scp -r "$1" .
+    ;;
+
+  "ssh:upload")
+    echo -e "${COLOR_INFO}>> uploading public key via ssh-copy-id${COLOR_RESET}"
+    ssh-copy-id "$1"
+    ;;
+
+  "ssh:sync:local")
+    echo -e "${COLOR_INFO}>> rsync local → remote${COLOR_RESET}"
+    rsync -avz "$1" "$2"
+    ;;
+
+  "ssh:sync:remote")
+    echo -e "${COLOR_INFO}>> rsync remote → local${COLOR_RESET}"
+    rsync -avz "$1" "$2"
+    ;;
+
+  "ssh:list")
+    echo -e "${COLOR_INFO}>> known SSH hosts:${COLOR_RESET}"
+    cat ~/.ssh/known_hosts | cut -d',' -f1 | uniq
+    ;;
+
+esac

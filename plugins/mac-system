@@ -1,0 +1,133 @@
+#!/bin/zsh
+# MACSTACK PLUGIN: mac-system
+# STYLE: UNIX / SNAKE_CASE
+# SHELL: ZSH
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+# LOAD SHARED LIB
+if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
+  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
+  exit 1
+fi
+source "$MACROOT/lib/shared.zsh"
+macstack_load_config || true
+
+MACSTACK_MODE="subcommand:1"
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)"
+source "$MACROOT/lib/shared.zsh"
+
+case "$fn" in
+  "system:update")
+    echo -e "${COLOR_BOLD}${COLOR_INFO}>>> SYSTEM UPDATE STARTED${COLOR_RESET}"
+
+    if command -v brew &>/dev/null; then
+      echo -e "${COLOR_INFO}>> brew update && upgrade${COLOR_RESET}"
+      brew update && brew upgrade && brew upgrade --cask && brew cleanup
+    fi
+
+    if command -v chezmoi &>/dev/null; then
+      if [[ "$USE_CHEZMOI_PULL" == "true" ]]; then
+        echo -e "${COLOR_INFO}>> chezmoi update${COLOR_RESET}"
+        chezmoi update
+      else
+        echo -e "${COLOR_INFO}>> chezmoi apply (local-only)${COLOR_RESET}"
+        chezmoi apply --force
+      fi
+    fi
+
+    if command -v omz &>/dev/null; then
+      echo -e "${COLOR_INFO}>> omz update${COLOR_RESET}"
+      omz update
+    fi
+
+    if [[ -d "$OMZ_PLUGIN_ROOT" ]]; then
+      echo -e "${COLOR_INFO}>> OMZ plugins:${COLOR_RESET}"
+      for dir in "$OMZ_PLUGIN_ROOT"/*/.git; do
+        repo="${dir%/.git}"
+        name="$(basename "$repo")"
+        echo -e " ${COLOR_SUCCESS}↪ $name${COLOR_RESET}"
+        git -C "$repo" pull --ff-only --quiet && echo -e "  ✓ Updated"
+      done
+    fi
+
+    if [[ -d "$WORKSPACE_TOOLS_ROOT" ]]; then
+      echo -e "${COLOR_INFO}>> tools in $WORKSPACE_TOOLS_ROOT${COLOR_RESET}"
+      for dir in "$WORKSPACE_TOOLS_ROOT"/*/.git; do
+        repo="${dir%/.git}"
+        name="$(basename "$repo")"
+        echo -e " ${COLOR_SUCCESS}↪ $name${COLOR_RESET}"
+        git -C "$repo" pull --ff-only --quiet && echo -e "  ✓ Updated"
+      done
+    fi
+
+    echo -e "${COLOR_BOLD}${COLOR_SUCCESS}>>> SYSTEM UPDATE DONE${COLOR_RESET}"
+    ;;
+
+    "system:reboot")
+    echo "♻️ Rebooting system..."
+    sudo shutdown -r now
+    ;;
+
+    "system:lock")
+    echo -e "${COLOR_INFO}>> locking screen${COLOR_RESET}"
+    /System/Library/CoreServices/Menu\\ Extras/User.menu/Contents/Resources/CGSession -suspend
+    ;;
+
+    "system:clear-dns")
+    echo -e "${COLOR_INFO}>> clearing DNS cache${COLOR_RESET}"
+    sudo killall -HUP mDNSResponder
+    ;;
+
+    "system:copy-ssh-key")
+    echo -e "${COLOR_INFO}>> copying public SSH key to clipboard${COLOR_RESET}"
+    pbcopy < "$HOME/.ssh/id_rsa.pub"
+    ;;
+
+    "system:print-cancel")
+    echo -e "${COLOR_INFO}>> cancelling all print jobs${COLOR_RESET}"
+    cancel -a
+    ;;
+
+    "system:clean")
+    target="$1"
+    echo -e "${COLOR_INFO}>> cleaning: $target${COLOR_RESET}"
+    case "$target" in
+      logs)
+        sudo rm -rf /private/var/log/*
+        ;;
+      temp)
+        sudo rm -rf /private/var/tmp/*
+        ;;
+      cache|usercache)
+        rm -rf ~/Library/Caches/*
+        ;;
+      print)
+        cancel -a
+        ;;
+      brew)
+        brew cleanup
+        ;;
+      docker)
+        docker system prune -a -f
+        ;;
+      all)
+        $0 system clean logs
+        $0 system clean temp
+        $0 system clean cache
+        $0 system clean print
+        $0 system clean brew
+        $0 system clean docker
+        ;;
+      *)
+        echo -e "${COLOR_WARN}!! unknown cleanup target: $target${COLOR_RESET}"
+        ;;
+    esac
+    ;;
+
+esac
