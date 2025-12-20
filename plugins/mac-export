@@ -1,0 +1,180 @@
+#!/bin/zsh
+# MACSTACK PLUGIN: mac-export
+# STYLE: UNIX / SNAKE_CASE
+# SHELL: ZSH
+#
+# PURPOSE:
+# - EXPORT MARKDOWN VIA PANDOC
+# - EXPORT HTML VIA WEASYPRINT
+#
+# CONFIG:
+# - REQUIRED (XDG OR REPO DEFAULT). RUN: mac init
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+# LOAD SHARED LIB
+if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
+  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
+  exit 1
+fi
+source "$MACROOT/lib/shared.zsh"
+
+# LOAD CONFIG (DEV + XDG) — REQUIRED FOR EXPORT
+macstack_load_config || { print_error "MISSING CONFIG (RUN: mac init)"; exit 1; }
+
+Command="${1:-}"
+if [[ -z "$Command" || "$Command" == "help" || "$Command" == "--help" || "$Command" == "-h" ]]; then
+  cat <<'EOF'
+mac export — document export
+
+Usage:
+  mac export markdown <input.md> --title "..." [--company "..."] [--context "a,b,c"]
+  mac export html     <input.html> --title "..." [--company "..."] [--context "a,b,c"]
+
+Notes:
+  - markdown uses pandoc
+  - html uses weasyprint
+EOF
+  exit 0
+fi
+
+# SHIFT SUBCOMMAND AND FORWARD REST AS-IS
+shift
+ARGS=("$@")
+set -- "${ARGS[@]}"
+
+require_value() {
+  local value="$1"
+  local message="$2"
+  if [[ -z "$value" ]]; then
+    print_error "$message"
+    exit 1
+  fi
+}
+
+# NORMALIZE GEOMETRY:
+# - ACCEPT: "1in" OR "margin=1in" OR "top=1in,left=1in,..."
+normalize_geometry() {
+  local g="${1:-}"
+  if [[ -z "$g" ]]; then
+    print -r -- ""
+    return 0
+  fi
+  if [[ "$g" != *"="* ]]; then
+    g="margin=$g"
+  fi
+  print -r -- "$g"
+}
+
+# BUILD OUTPUT FILE NAME
+# NOTE: semantic_filename(title, company, date_prefix) => <date>_<company>_<slug>.pdf
+# WE APPEND CONTEXT TAGS (IF PROVIDED) AS AN EXTRA SLUG SEGMENT.
+build_output_filename() {
+  local title="$1"
+  local company="$2"
+  local context_csv="${3:-}"
+  local date_prefix="${4:-$(date +%Y%m%d)}"
+
+  local base
+  base="$(semantic_filename "$title" "$company" "$date_prefix")"
+
+  if [[ -n "$context_csv" ]]; then
+    local ctx
+    ctx="$(print -r -- "$context_csv" | tr ',' '_' )"
+    ctx="$(slugify "$ctx")"
+    # INSERT CONTEXT BEFORE EXTENSION
+    base="${base%.pdf}_${ctx}.pdf"
+  fi
+
+  print -r -- "$base"
+}
+
+fn="export:${Command}"
+case "$fn" in
+
+  export:markdown)
+    TITLE=""
+    COMPANY="${EXPORT_COMPANY:-private}"
+    CONTEXT=""
+    POSITIONAL=()
+
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --title) TITLE="${2:-}"; shift 2 ;;
+        --company) COMPANY="${2:-}"; shift 2 ;;
+        --context) CONTEXT="${2:-}"; shift 2 ;;
+        *) POSITIONAL+=("$1"); shift ;;
+      esac
+    done
+
+    set -- "${POSITIONAL[@]}"
+    INPUT="${1:-}"
+
+    require_value "$TITLE" "MISSING --title"
+    require_value "$INPUT" "MISSING INPUT FILE"
+
+    [[ -f "$INPUT" ]] || { print_error "INPUT NOT FOUND: $INPUT"; exit 1; }
+
+    OUTDIR="$(export_target_directory)"
+    OUTFILE_NAME="$(build_output_filename "$TITLE" "$COMPANY" "$CONTEXT")"
+    OUTFILE="${OUTDIR}/${OUTFILE_NAME}"
+
+    PDF_ENGINE="${EXPORT_MD_ENGINE:-pdflatex}"
+    PAPER_SIZE="${EXPORT_LAYOUT:-letter}"
+    FONT_SIZE="${EXPORT_MD_FONTSIZE:-11pt}"
+    GEOM_RAW="${EXPORT_MARGIN:-1in}"
+    GEOM="$(normalize_geometry "$GEOM_RAW")"
+
+    echo "🧾 Converting Markdown → PDF via Pandoc..."
+    pandoc "$INPUT" -o "$OUTFILE"       --pdf-engine="$PDF_ENGINE"       -V "geometry:$GEOM"       -V "papersize=$PAPER_SIZE"       -V "fontsize=$FONT_SIZE"
+
+    tag_file "$OUTFILE" "$CONTEXT"
+    print_success "EXPORTED: $OUTFILE"
+    ;;
+
+  export:html)
+    TITLE=""
+    COMPANY="${EXPORT_COMPANY:-private}"
+    CONTEXT=""
+    POSITIONAL=()
+
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --title) TITLE="${2:-}"; shift 2 ;;
+        --company) COMPANY="${2:-}"; shift 2 ;;
+        --context) CONTEXT="${2:-}"; shift 2 ;;
+        *) POSITIONAL+=("$1"); shift ;;
+      esac
+    done
+
+    set -- "${POSITIONAL[@]}"
+    INPUT="${1:-}"
+
+    require_value "$TITLE" "MISSING --title"
+    require_value "$INPUT" "MISSING INPUT FILE"
+
+    [[ -f "$INPUT" ]] || { print_error "INPUT NOT FOUND: $INPUT"; exit 1; }
+
+    OUTDIR="$(export_target_directory)"
+    OUTFILE_NAME="$(build_output_filename "$TITLE" "$COMPANY" "$CONTEXT")"
+    OUTFILE="${OUTDIR}/${OUTFILE_NAME}"
+
+    echo "🖨️  Converting HTML → PDF via WeasyPrint..."
+    weasyprint "$INPUT" "$OUTFILE"
+
+    tag_file "$OUTFILE" "$CONTEXT"
+    print_success "EXPORTED: $OUTFILE"
+    ;;
+
+  *)
+    print_error "UNKNOWN EXPORT SUBCOMMAND: $Command"
+    print_error "TRY: mac export --help"
+    exit 2
+    ;;
+
+esac

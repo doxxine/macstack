@@ -1,0 +1,78 @@
+#!/bin/zsh
+# MACSTACK PLUGIN: mac-doctor
+# STYLE: UNIX / SNAKE_CASE
+# SHELL: ZSH
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+source "$MACROOT/lib/shared.zsh"
+
+# LOAD CONFIG (DEV + XDG; OPTIONAL)
+macstack_load_config || true
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+mac doctor — system sanity checks
+
+Usage:
+  mac doctor
+
+What it checks:
+  - shared library present
+  - config file present
+  - brew, git, pandoc availability (best-effort)
+EOF
+  exit 0
+fi
+
+CONFIG_FILE="$MACROOT/macstack.conf"
+SHARED_LIB="$MACROOT/lib/shared.zsh"
+
+echo "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+echo "${COLOR_BOLD}🩺  MACSTACK SYSTEM CHECK${COLOR_RESET}"
+echo "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+
+Fail=0
+
+CheckFile() {
+  local Label="$1"
+  local Path="$2"
+  echo -n "$Label: "
+  if [[ -f "$Path" ]]; then
+    echo "${COLOR_SUCCESS}FOUND${COLOR_RESET}"
+  else
+    echo "${COLOR_ERR}MISSING${COLOR_RESET}"
+    Fail=1
+  fi
+}
+
+CheckCmd() {
+  local Label="$1"
+  local Cmd="$2"
+  echo -n "$Label: "
+  if command -v "$Cmd" >/dev/null 2>&1; then
+    echo "${COLOR_SUCCESS}INSTALLED${COLOR_RESET}"
+  else
+    echo "${COLOR_WARN}MISSING${COLOR_RESET}"
+  fi
+}
+
+CheckFile "📦 Shared Library" "$SHARED_LIB"
+CheckFile "⚙️  Config File" "$CONFIG_FILE"
+
+echo -n "📁 MACROOT: "
+[[ -d "$MACROOT" ]] && echo "${COLOR_SUCCESS}${MACROOT}${COLOR_RESET}" || { echo "${COLOR_ERR}INVALID${COLOR_RESET}"; Fail=1; }
+
+CheckCmd "🍺 brew" "brew"
+CheckCmd "🧬 git" "git"
+CheckCmd "🛠 pandoc" "pandoc"
+CheckCmd "🧾 weasyprint" "weasyprint"
+CheckCmd "🏷 tag (Finder tags)" "tag"
+CheckCmd "🧰 xcode-select" "xcode-select"
+
+exit "$Fail"

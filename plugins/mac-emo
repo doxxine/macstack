@@ -1,0 +1,100 @@
+#!/bin/zsh
+# MACSTACK PLUGIN: mac-emo
+# STYLE: UNIX / SNAKE_CASE
+# SHELL: ZSH
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+source "$MACROOT/lib/shared.zsh"
+
+# LOAD CONFIG (DEV + XDG; OPTIONAL)
+macstack_load_config || true
+
+Command="${1:-}"
+if [[ -z "$Command" || "$Command" == "help" || "$Command" == "--help" || "$Command" == "-h" ]]; then
+  cat <<'EOF'
+mac emo — quick ASCII emotions (copied to clipboard)
+
+Usage:
+  mac emo shrug
+  mac emo flip-table
+  mac emo fight
+  mac emo lenny
+  mac emo confused
+  mac emo cry
+  mac emo happy
+  mac emo vibecheck
+  mac emo sus
+  mac emo fireline
+  mac emo comeon
+  mac emo nottoday
+EOF
+  exit 0
+fi
+
+fn="emo:${Command}"
+
+print_and_copy() {
+  local content="$1"
+  local description="$2"
+  echo -e "${COLOR_INFO}>> $description${COLOR_RESET}"
+  echo "$content"
+  printf "%s" "$content" | pbcopy
+}
+
+case "$fn" in
+
+  "emo:shrug")
+    print_and_copy "¯\\_(ツ)_/¯" "I don't know, man."
+    ;;
+
+  "emo:flip-table")
+    print_and_copy "(╯°□°）╯︵ ┻━┻" "Frustration unleashed."
+    ;;
+
+  "emo:fight")
+    print_and_copy "(ง'̀-'́)ง" "Ready to throw hands."
+    ;;
+
+  "emo:lenny")
+    print_and_copy "( ͡° ͜ʖ ͡°)" "Suspicious energy."
+    ;;
+
+  "emo:confused")
+    print_and_copy "(°ロ°) !?" "Say what?"
+    ;;
+
+  "emo:cry")
+    print_and_copy "(ಥ﹏ಥ)" "Full emotional collapse."
+    ;;
+
+  "emo:happy")
+    print_and_copy "(＾▽＾)" "Wholesome joy."
+    ;;
+
+  "emo:vibecheck")
+    print_and_copy "🌈✨ vibe check complete 🌈✨" "Mood scan complete."
+    ;;
+
+  "emo:sus")
+    print_and_copy "🧍‍♂️💬 that’s kinda sus bro" "Impostor energy."
+    ;;
+
+  "emo:fireline")
+    print_and_copy "🔥🔥🔥 TODAY YOU 🔥🔥🔥" "You're on fire."
+    ;;
+
+  "emo:comeon")
+    print_and_copy "👀👉👈 come on, just one more PR" "Soft pleading."
+    ;;
+
+  "emo:nottoday")
+    print_and_copy "🙅‍♂️❌ not today Satan" "Hard pass."
+    ;;
+
+esac

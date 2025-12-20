@@ -1,0 +1,62 @@
+#!/bin/zsh
+# MACSTACK PLUGIN: mac-git
+# STYLE: UNIX / SNAKE_CASE
+# SHELL: ZSH
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+source "$MACROOT/lib/shared.zsh"
+
+# LOAD CONFIG (DEV + XDG; OPTIONAL)
+macstack_load_config || true
+
+Command="${1:-}"
+if [[ -z "$Command" || "$Command" == "help" || "$Command" == "--help" || "$Command" == "-h" ]]; then
+  cat <<'EOF'
+mac git — small git shortcuts
+
+Usage:
+  mac git wip           # add + commit "work in progress"
+  mac git wipp          # add + commit + push "work in progress"
+  mac git undo-commit   # soft reset HEAD~1
+  mac git reset-clean   # hard reset + clean -df
+  mac git size          # git object stats
+EOF
+  exit 0
+fi
+
+fn="git:${Command}"
+
+case "$fn" in
+
+  "git:wip")
+    echo -e "${COLOR_INFO}>> git add + commit (wip)${COLOR_RESET}"
+    git add . && git commit -m "work in progress"
+    ;;
+
+  "git:wipp")
+    echo -e "${COLOR_INFO}>> git add + commit + push (wip)${COLOR_RESET}"
+    git add . && git commit -m "work in progress" && git push && echo -e "${COLOR_SUCCESS}✓ pushed${COLOR_RESET}"
+    ;;
+
+  "git:undo-commit")
+    echo -e "${COLOR_INFO}>> undoing last commit (soft reset)${COLOR_RESET}"
+    git reset --soft HEAD~1
+    ;;
+
+  "git:reset-clean")
+    echo -e "${COLOR_INFO}>> hard reset + clean untracked${COLOR_RESET}"
+    git reset --hard && git clean -df
+    ;;
+
+  "git:size")
+    echo -e "${COLOR_INFO}>> repo object stats${COLOR_RESET}"
+    git count-objects -vH
+    ;;
+
+esac

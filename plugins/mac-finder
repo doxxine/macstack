@@ -1,0 +1,37 @@
+#!/bin/zsh
+# MACSTACK PLUGIN: mac-finder
+# STYLE: UNIX / SNAKE_CASE
+# SHELL: ZSH
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+source "$MACROOT/lib/shared.zsh"
+
+# LOAD CONFIG (DEV + XDG; OPTIONAL)
+macstack_load_config || true
+
+Command="${1:-}"
+if [[ -z "$Command" || "$Command" == "help" || "$Command" == "--help" || "$Command" == "-h" ]]; then
+  cat <<'EOF'
+mac finder — Finder helpers
+
+Usage:
+  mac finder open   # open Finder in current directory
+EOF
+  exit 0
+fi
+
+fn="finder:${Command}"
+
+case "$fn" in
+  "finder:open")
+    echo -e "${COLOR_INFO}>> Opening Finder at current directory...${COLOR_RESET}"
+    open .
+    ;;
+
+esac

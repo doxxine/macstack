@@ -1,0 +1,139 @@
+#!/bin/zsh
+# MACSTACK PLUGIN: mac-help
+# STYLE: UNIX / SNAKE_CASE
+# SHELL: ZSH
+#
+# PURPOSE:
+# - PRINT A STYLED HELP SCREEN (OVERVIEW)
+# - LIST PLUGINS
+# - SHOW HELP FOR A SPECIFIC COMMAND (PLUGIN OR BUILT-IN)
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+# LOAD SHARED LIB
+if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
+  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
+  exit 1
+fi
+source "$MACROOT/lib/shared.zsh"
+macstack_load_config || true
+
+sub="${1:-}"
+
+print_header() {
+  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+  print -r -- "${COLOR_BOLD}🧠  MACSTACK HELP${COLOR_RESET}"
+  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+}
+
+print_overview() {
+  print_header
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}USAGE${COLOR_RESET}"
+  print -r -- "  mac <command> [args]"
+  print -r -- "  mac help <command>"
+  print -r -- "  mac <command> --help"
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}BUILT-INS${COLOR_RESET}"
+  print -r -- "  help      Show help (router)"
+  print -r -- "  version   Print version"
+  print -r -- "  list      List commands (built-ins + plugins)"
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}PLUGINS${COLOR_RESET}"
+  print -r -- "  Plugins are executables named: mac-<command>"
+  print -r -- "  Resolution order:"
+  print -r -- "    1) <repo>/plugins/mac-<command>"
+  print -r -- "    2) PATH/mac-<command>"
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}TIPS${COLOR_RESET}"
+  print -r -- "  mac list"
+  print -r -- "  mac list plugins"
+  print -r -- "  mac help export"
+  print -r -- ""
+}
+
+list_plugins() {
+  local plugin_dir="$MACROOT/plugins"
+  if [[ ! -d "$plugin_dir" ]]; then
+    print_warn "NO PLUGIN DIRECTORY: $plugin_dir"
+    return 0
+  fi
+
+  print -r -- "${COLOR_BOLD}PLUGINS (REPO)${COLOR_RESET}"
+  local found=0
+  local f
+  for f in "$plugin_dir"/mac-*; do
+    [[ -e "$f" ]] || continue
+    [[ -x "$f" ]] || continue
+    found=1
+    print -r -- "  ${f:t#mac-}"
+  done
+
+  if [[ "$found" -eq 0 ]]; then
+    print -r -- "  (none)"
+  fi
+}
+
+show_command_help() {
+  local cmd="$1"
+
+  # USE ROUTER HELP (BUILT-IN) IF AVAILABLE.
+  # THIS WORKS FOR BOTH BUILT-INS AND PLUGINS.
+  if command -v mac >/dev/null 2>&1; then
+    print_header
+    print -r -- ""
+    print -r -- "${COLOR_BOLD}HELP: ${cmd}${COLOR_RESET}"
+    print -r -- ""
+    mac help "$cmd"
+    return $?
+  fi
+
+  # FALLBACK: EXECUTE PLUGIN DIRECTLY IF 'mac' NOT IN PATH
+  local plugin="$MACROOT/plugins/mac-${cmd}"
+  if [[ -x "$plugin" ]]; then
+    print_header
+    print -r -- ""
+    print -r -- "${COLOR_BOLD}HELP: ${cmd}${COLOR_RESET}"
+    print -r -- ""
+    "$plugin" --help
+    return $?
+  fi
+
+  print_error "UNKNOWN COMMAND: $cmd"
+  return 2
+}
+
+if [[ "$sub" == "--help" || "$sub" == "-h" ]]; then
+  cat <<'EOF'
+mac help — styled help
+
+Usage:
+  mac help                 # overview (styled)
+  mac help plugins         # list plugins (repo-local)
+  mac help <command>       # show help for a command
+
+Notes:
+  - The router also supports: mac <command> --help
+  - This command is a styled wrapper around the router help.
+EOF
+  exit 0
+fi
+
+case "$sub" in
+  "" )
+    print_overview
+    ;;
+  plugins)
+    print_header
+    print -r -- ""
+    list_plugins
+    ;;
+  *)
+    show_command_help "$sub"
+    ;;
+esac

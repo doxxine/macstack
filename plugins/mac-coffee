@@ -1,0 +1,59 @@
+#!/bin/zsh
+# MACSTACK PLUGIN: mac-coffee
+# STYLE: UNIX / SNAKE_CASE
+# SHELL: ZSH
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+source "$MACROOT/lib/shared.zsh"
+macstack_load_config || true
+
+Command="${1:-}"
+if [[ -z "$Command" || "$Command" == "help" || "$Command" == "--help" || "$Command" == "-h" ]]; then
+  cat <<'EOF'
+mac coffee — caffeinate helpers
+
+Usage:
+  mac coffee on
+  mac coffee off
+  mac coffee status
+EOF
+  exit 0
+fi
+
+fn="coffee:${Command}"
+
+case "$fn" in
+
+  "coffee:on")
+    if pgrep -x caffeinate >/dev/null; then
+      echo -e "${COLOR_WARN}>> already running${COLOR_RESET}"
+    else
+      echo -e "${COLOR_INFO}>> enabling stay-awake mode${COLOR_RESET}"
+      caffeinate -di &
+      echo -e "${COLOR_SUCCESS}☕️ enabled${COLOR_RESET}"
+    fi
+    ;;
+
+  "coffee:off")
+    if pkill caffeinate; then
+      echo -e "${COLOR_SUCCESS}😴 caffeinate stopped${COLOR_RESET}"
+    else
+      echo -e "${COLOR_WARN}>> caffeinate not running${COLOR_RESET}"
+    fi
+    ;;
+
+  "coffee:status")
+    if pgrep -x caffeinate >/dev/null; then
+      echo -e "${COLOR_SUCCESS}☕️ active (caffeinate running)${COLOR_RESET}"
+    else
+      echo -e "${COLOR_INFO}😴 off (no caffeinate process)${COLOR_RESET}"
+    fi
+    ;;
+
+esac
