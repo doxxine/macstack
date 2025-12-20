@@ -5,7 +5,7 @@
 var target = Argument("target", "build");
 
 var srcProj = File("../src/mac/mac.csproj");
-var outDir  = Directory("../.bin");
+var outDir  = Directory("./.bin");
 
 Task("clean")
   .Does(() =>
@@ -17,15 +17,15 @@ Task("build")
   .IsDependentOn("clean")
   .Does(() =>
 {
-  DotNetPublish(srcProj.FullPath, new DotNetPublishSettings
+  DotNetPublish(srcProj, new DotNetPublishSettings
   {
     Configuration = "Release",
     Runtime = "osx-arm64",
-    OutputDirectory = outDir,
-    NoRestore = false
+    OutputDirectory = outDir
   });
 
-  StartProcess("chmod", new ProcessSettings {
+  StartProcess("chmod", new ProcessSettings
+  {
     Arguments = $"+x \"{outDir}/mac\""
   });
 });
