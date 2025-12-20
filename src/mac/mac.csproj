@@ -9,6 +9,10 @@
         <Nullable>enable</Nullable>
         <PublishAot>true</PublishAot>
         <InvariantGlobalization>true</InvariantGlobalization>
+        <!-- THIS IS A MAC-ONLY TOOL -->
+        <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
+        <SupportedOSPlatform>macos</SupportedOSPlatform>
+        <NoWarn>$(NoWarn);CA1416</NoWarn>
     </PropertyGroup>
 
 </Project>
