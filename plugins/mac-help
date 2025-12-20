@@ -1,0 +1,74 @@
+#!/bin/zsh
+# MACSTACK PLUGIN (UNIX-STYLE)
+# NOTE: THIS IS AN EXECUTABLE "mac-<command>" PLUGIN.
+# SHELL: ZSH
+
+set -euo pipefail
+
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+source "$MACROOT/lib/shared.zsh"
+
+# NOTE: THIS COMMAND PRINTS A STYLED HELP SCREEN.
+# IT DOES NOT REPLACE 'mac --help' (BUILT-IN), IT COMPLEMENTS IT.
+
+
+# ASCII Title
+printf "${COLOR_INFO}#===========================================================#\n"
+printf "#                     ${COLOR_BOLD}M A C S T A C K${COLOR_RESET}${COLOR_INFO}                        #\n"
+printf "#           Modular CLI Framework for Nerds & Hackers       #\n"
+printf "#===========================================================#${COLOR_RESET}\n\n"
+
+# SYSTEM Section
+printf "${COLOR_BOLD}${COLOR_INFO}# SYSTEM${COLOR_RESET}\n"
+printf "${COLOR_SUCCESS}mac system update       ${COLOR_RESET}→ update brew, chezmoi, plugins\n"
+printf "${COLOR_SUCCESS}mac system reboot       ${COLOR_RESET}→ restart the machine\n"
+printf "${COLOR_SUCCESS}mac system clean [x]    ${COLOR_RESET}→ logs, temp, cache, docker, all\n\n"
+
+# SSH Section
+printf "${COLOR_BOLD}${COLOR_INFO}# SSH${COLOR_RESET}\n"
+printf "${COLOR_SUCCESS}mac ssh key             ${COLOR_RESET}→ copy public SSH key\n"
+printf "${COLOR_SUCCESS}mac ssh df <file>       ${COLOR_RESET}→ download file via scp\n"
+printf "${COLOR_SUCCESS}mac ssh ddir <folder>   ${COLOR_RESET}→ download folder via scp -r\n"
+printf "${COLOR_SUCCESS}mac ssh upload <host>   ${COLOR_RESET}→ push public key\n"
+printf "${COLOR_SUCCESS}mac ssh sync:local a b  ${COLOR_RESET}→ rsync push\n"
+printf "${COLOR_SUCCESS}mac ssh sync:remote a b ${COLOR_RESET}→ rsync pull\n"
+printf "${COLOR_SUCCESS}mac ssh list            ${COLOR_RESET}→ known_hosts entries\n\n"
+
+# TOOLS Section
+printf "${COLOR_BOLD}${COLOR_INFO}# TOOLS${COLOR_RESET}\n"
+printf "${COLOR_SUCCESS}mac tools serve [port]  ${COLOR_RESET}→ HTTP server in CWD\n"
+printf "${COLOR_SUCCESS}mac tools fs [path]     ${COLOR_RESET}→ du -sh on path\n"
+printf "${COLOR_SUCCESS}mac tools retry <cmd>   ${COLOR_RESET}→ retry command loop\n"
+printf "${COLOR_SUCCESS}mac tools uuid          ${COLOR_RESET}→ full UUID\n"
+printf "${COLOR_SUCCESS}mac tools timestamp     ${COLOR_RESET}→ current unix timestamp\n"
+printf "${COLOR_SUCCESS}mac tools convert-webp  ${COLOR_RESET}→ PNG → WebP\n\n"
+
+# NET Section
+printf "${COLOR_BOLD}${COLOR_INFO}# NET${COLOR_RESET}\n"
+printf "${COLOR_SUCCESS}mac net ip              ${COLOR_RESET}→ public IP\n"
+printf "${COLOR_SUCCESS}mac net local           ${COLOR_RESET}→ local IP\n"
+printf "${COLOR_SUCCESS}mac net ssid            ${COLOR_RESET}→ current Wi-Fi SSID\n"
+printf "${COLOR_SUCCESS}mac net ports           ${COLOR_RESET}→ listening TCP ports\n\n"
+
+# EMO Section
+printf "${COLOR_BOLD}${COLOR_INFO}# EMO${COLOR_RESET}\n"
+printf "${COLOR_SUCCESS}mac emo shrug           ${COLOR_RESET}→ ¯\\_(ツ)_/¯\n"
+printf "${COLOR_SUCCESS}mac emo lenny           ${COLOR_RESET}→ ( ͡° ͜ʖ ͡°)\n"
+printf "${COLOR_SUCCESS}mac emo fight           ${COLOR_RESET}→ (ง'̀-'́)ง\n"
+printf "${COLOR_SUCCESS}mac emo fireline        ${COLOR_RESET}→ motivational spam\n"
+printf "${COLOR_SUCCESS}mac emo nottoday        ${COLOR_RESET}→ classic shutdown\n\n"
+
+# COFFEE Section
+printf "${COLOR_BOLD}${COLOR_INFO}# COFFEE${COLOR_RESET}\n"
+printf "${COLOR_SUCCESS}mac coffee on           ${COLOR_RESET}→ keep system awake\n"
+printf "${COLOR_SUCCESS}mac coffee off          ${COLOR_RESET}→ allow sleep\n"
+printf "${COLOR_SUCCESS}mac coffee status       ${COLOR_RESET}→ show state\n\n"
+
+# Footer
+printf "${COLOR_INFO}# use: mac <plugin> <command> [...args]${COLOR_RESET}\n"
+printf "${COLOR_INFO}# example: mac system update${COLOR_RESET}\n"
+printf "${COLOR_INFO}#===========================================================#${COLOR_RESET}\n"
