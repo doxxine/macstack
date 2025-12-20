@@ -1,7 +1,12 @@
 #!/bin/zsh
-# MACSTACK PLUGIN (UNIX-STYLE)
-# NOTE: THIS IS AN EXECUTABLE "mac-<command>" PLUGIN.
+# MACSTACK PLUGIN: mac-help
+# STYLE: UNIX / SNAKE_CASE
 # SHELL: ZSH
+#
+# PURPOSE:
+# - PRINT A STYLED HELP SCREEN (OVERVIEW)
+# - LIST PLUGINS
+# - SHOW HELP FOR A SPECIFIC COMMAND (PLUGIN OR BUILT-IN)
 
 set -euo pipefail
 
@@ -10,65 +15,125 @@ MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
 # PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
 MACROOT="$(cd "$MACROOT/.." && pwd)"
 
+# LOAD SHARED LIB
+if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
+  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
+  exit 1
+fi
 source "$MACROOT/lib/shared.zsh"
+macstack_load_config || true
 
-# NOTE: THIS COMMAND PRINTS A STYLED HELP SCREEN.
-# IT DOES NOT REPLACE 'mac --help' (BUILT-IN), IT COMPLEMENTS IT.
+sub="${1:-}"
 
+print_header() {
+  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+  print -r -- "${COLOR_BOLD}🧠  MACSTACK HELP${COLOR_RESET}"
+  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+}
 
-# ASCII Title
-printf "${COLOR_INFO}#===========================================================#\n"
-printf "#                     ${COLOR_BOLD}M A C S T A C K${COLOR_RESET}${COLOR_INFO}                        #\n"
-printf "#           Modular CLI Framework for Nerds & Hackers       #\n"
-printf "#===========================================================#${COLOR_RESET}\n\n"
+print_overview() {
+  print_header
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}USAGE${COLOR_RESET}"
+  print -r -- "  mac <command> [args]"
+  print -r -- "  mac help <command>"
+  print -r -- "  mac <command> --help"
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}BUILT-INS${COLOR_RESET}"
+  print -r -- "  help      Show help (router)"
+  print -r -- "  version   Print version"
+  print -r -- "  list      List commands (built-ins + plugins)"
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}PLUGINS${COLOR_RESET}"
+  print -r -- "  Plugins are executables named: mac-<command>"
+  print -r -- "  Resolution order:"
+  print -r -- "    1) <repo>/plugins/mac-<command>"
+  print -r -- "    2) PATH/mac-<command>"
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}TIPS${COLOR_RESET}"
+  print -r -- "  mac list"
+  print -r -- "  mac list plugins"
+  print -r -- "  mac help export"
+  print -r -- ""
+}
 
-# SYSTEM Section
-printf "${COLOR_BOLD}${COLOR_INFO}# SYSTEM${COLOR_RESET}\n"
-printf "${COLOR_SUCCESS}mac system update       ${COLOR_RESET}→ update brew, chezmoi, plugins\n"
-printf "${COLOR_SUCCESS}mac system reboot       ${COLOR_RESET}→ restart the machine\n"
-printf "${COLOR_SUCCESS}mac system clean [x]    ${COLOR_RESET}→ logs, temp, cache, docker, all\n\n"
+list_plugins() {
+  local plugin_dir="$MACROOT/plugins"
+  if [[ ! -d "$plugin_dir" ]]; then
+    print_warn "NO PLUGIN DIRECTORY: $plugin_dir"
+    return 0
+  fi
 
-# SSH Section
-printf "${COLOR_BOLD}${COLOR_INFO}# SSH${COLOR_RESET}\n"
-printf "${COLOR_SUCCESS}mac ssh key             ${COLOR_RESET}→ copy public SSH key\n"
-printf "${COLOR_SUCCESS}mac ssh df <file>       ${COLOR_RESET}→ download file via scp\n"
-printf "${COLOR_SUCCESS}mac ssh ddir <folder>   ${COLOR_RESET}→ download folder via scp -r\n"
-printf "${COLOR_SUCCESS}mac ssh upload <host>   ${COLOR_RESET}→ push public key\n"
-printf "${COLOR_SUCCESS}mac ssh sync:local a b  ${COLOR_RESET}→ rsync push\n"
-printf "${COLOR_SUCCESS}mac ssh sync:remote a b ${COLOR_RESET}→ rsync pull\n"
-printf "${COLOR_SUCCESS}mac ssh list            ${COLOR_RESET}→ known_hosts entries\n\n"
+  print -r -- "${COLOR_BOLD}PLUGINS (REPO)${COLOR_RESET}"
+  local found=0
+  local f
+  for f in "$plugin_dir"/mac-*; do
+    [[ -e "$f" ]] || continue
+    [[ -x "$f" ]] || continue
+    found=1
+    print -r -- "  ${f:t#mac-}"
+  done
 
-# TOOLS Section
-printf "${COLOR_BOLD}${COLOR_INFO}# TOOLS${COLOR_RESET}\n"
-printf "${COLOR_SUCCESS}mac tools serve [port]  ${COLOR_RESET}→ HTTP server in CWD\n"
-printf "${COLOR_SUCCESS}mac tools fs [path]     ${COLOR_RESET}→ du -sh on path\n"
-printf "${COLOR_SUCCESS}mac tools retry <cmd>   ${COLOR_RESET}→ retry command loop\n"
-printf "${COLOR_SUCCESS}mac tools uuid          ${COLOR_RESET}→ full UUID\n"
-printf "${COLOR_SUCCESS}mac tools timestamp     ${COLOR_RESET}→ current unix timestamp\n"
-printf "${COLOR_SUCCESS}mac tools convert-webp  ${COLOR_RESET}→ PNG → WebP\n\n"
+  if [[ "$found" -eq 0 ]]; then
+    print -r -- "  (none)"
+  fi
+}
 
-# NET Section
-printf "${COLOR_BOLD}${COLOR_INFO}# NET${COLOR_RESET}\n"
-printf "${COLOR_SUCCESS}mac net ip              ${COLOR_RESET}→ public IP\n"
-printf "${COLOR_SUCCESS}mac net local           ${COLOR_RESET}→ local IP\n"
-printf "${COLOR_SUCCESS}mac net ssid            ${COLOR_RESET}→ current Wi-Fi SSID\n"
-printf "${COLOR_SUCCESS}mac net ports           ${COLOR_RESET}→ listening TCP ports\n\n"
+show_command_help() {
+  local cmd="$1"
 
-# EMO Section
-printf "${COLOR_BOLD}${COLOR_INFO}# EMO${COLOR_RESET}\n"
-printf "${COLOR_SUCCESS}mac emo shrug           ${COLOR_RESET}→ ¯\\_(ツ)_/¯\n"
-printf "${COLOR_SUCCESS}mac emo lenny           ${COLOR_RESET}→ ( ͡° ͜ʖ ͡°)\n"
-printf "${COLOR_SUCCESS}mac emo fight           ${COLOR_RESET}→ (ง'̀-'́)ง\n"
-printf "${COLOR_SUCCESS}mac emo fireline        ${COLOR_RESET}→ motivational spam\n"
-printf "${COLOR_SUCCESS}mac emo nottoday        ${COLOR_RESET}→ classic shutdown\n\n"
+  # USE ROUTER HELP (BUILT-IN) IF AVAILABLE.
+  # THIS WORKS FOR BOTH BUILT-INS AND PLUGINS.
+  if command -v mac >/dev/null 2>&1; then
+    print_header
+    print -r -- ""
+    print -r -- "${COLOR_BOLD}HELP: ${cmd}${COLOR_RESET}"
+    print -r -- ""
+    mac help "$cmd"
+    return $?
+  fi
 
-# COFFEE Section
-printf "${COLOR_BOLD}${COLOR_INFO}# COFFEE${COLOR_RESET}\n"
-printf "${COLOR_SUCCESS}mac coffee on           ${COLOR_RESET}→ keep system awake\n"
-printf "${COLOR_SUCCESS}mac coffee off          ${COLOR_RESET}→ allow sleep\n"
-printf "${COLOR_SUCCESS}mac coffee status       ${COLOR_RESET}→ show state\n\n"
+  # FALLBACK: EXECUTE PLUGIN DIRECTLY IF 'mac' NOT IN PATH
+  local plugin="$MACROOT/plugins/mac-${cmd}"
+  if [[ -x "$plugin" ]]; then
+    print_header
+    print -r -- ""
+    print -r -- "${COLOR_BOLD}HELP: ${cmd}${COLOR_RESET}"
+    print -r -- ""
+    "$plugin" --help
+    return $?
+  fi
 
-# Footer
-printf "${COLOR_INFO}# use: mac <plugin> <command> [...args]${COLOR_RESET}\n"
-printf "${COLOR_INFO}# example: mac system update${COLOR_RESET}\n"
-printf "${COLOR_INFO}#===========================================================#${COLOR_RESET}\n"
+  print_error "UNKNOWN COMMAND: $cmd"
+  return 2
+}
+
+if [[ "$sub" == "--help" || "$sub" == "-h" ]]; then
+  cat <<'EOF'
+mac help — styled help
+
+Usage:
+  mac help                 # overview (styled)
+  mac help plugins         # list plugins (repo-local)
+  mac help <command>       # show help for a command
+
+Notes:
+  - The router also supports: mac <command> --help
+  - This command is a styled wrapper around the router help.
+EOF
+  exit 0
+fi
+
+case "$sub" in
+  "" )
+    print_overview
+    ;;
+  plugins)
+    print_header
+    print -r -- ""
+    list_plugins
+    ;;
+  *)
+    show_command_help "$sub"
+    ;;
+esac

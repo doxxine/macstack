@@ -1,6 +1,6 @@
 #!/bin/zsh
-# MACSTACK PLUGIN (UNIX-STYLE)
-# NOTE: THIS IS AN EXECUTABLE "mac-<command>" PLUGIN.
+# MACSTACK PLUGIN: mac-emo
+# STYLE: UNIX / SNAKE_CASE
 # SHELL: ZSH
 
 set -euo pipefail
@@ -11,6 +11,9 @@ MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
 MACROOT="$(cd "$MACROOT/.." && pwd)"
 
 source "$MACROOT/lib/shared.zsh"
+
+# LOAD CONFIG (DEV + XDG; OPTIONAL)
+macstack_load_config || true
 
 Command="${1:-}"
 if [[ -z "$Command" || "$Command" == "help" || "$Command" == "--help" || "$Command" == "-h" ]]; then
