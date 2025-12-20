@@ -118,3 +118,79 @@ MacStack is open-source under the MIT License.
 
 Clear, well-structured, reproducible workflows matter.  
 If you believe the same — contributions, concepts, and discussions are always welcome.
+
+
+---
+
+## Execution Model
+
+`mac` is a **native, Ahead‑Of‑Time compiled** command that acts as a thin Unix router.
+
+- No runtime dependency on .NET at execution time
+- Fast startup, predictable behavior
+- Small built‑ins, everything else is a plugin
+
+## Command Resolution (Unix / Git‑Style)
+
+MacStack follows the classic Unix convention:
+
+```
+mac <command> [args]
+```
+
+Resolution order:
+
+1. Built‑in commands (`help`, `version`, `list`)
+2. Executables named `mac-<command>` in `<repo>/plugins/`
+3. Executables named `mac-<command>` found on `$PATH`
+
+This is the same model used by tools like `git` and `kubectl`.
+
+## Plugin Model
+
+Plugins are **real executables**, not scripts sourced into a shell.
+
+- Any language is allowed (zsh, sh, C#, Go, …)
+- Plugins must be executable
+- Help is exposed via `--help`
+- Exit codes follow Unix conventions
+
+Example:
+
+```
+plugins/mac-doctor
+plugins/mac-export
+```
+
+Invoked as:
+
+```
+mac doctor
+mac export
+```
+
+## Built‑ins
+
+```
+mac help
+mac help <command>
+mac version
+mac list
+```
+
+`mac list` enumerates all available commands (built‑ins + plugins).
+
+## Design Intent
+
+MacStack is intentionally **not**:
+
+- a framework
+- a monolithic CLI application
+- a cross‑platform abstraction layer
+
+It is a Unix toolchain that prefers:
+- composition over inheritance
+- executables over registries
+- conventions over configuration
+
+---
