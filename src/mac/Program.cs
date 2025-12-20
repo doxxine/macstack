@@ -5,10 +5,7 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
-        if (args.Length == 0 || IsHelp(args[0]))
-        {
-            return Help(Array.Empty<string>());
-        }
+        if (args.Length == 0 || IsHelp(args[0])) return Help(Array.Empty<string>());
 
         var cmd = args[0];
 
@@ -21,7 +18,10 @@ internal static class Program
         };
     }
 
-    private static bool IsHelp(string s) => s is "-h" or "--help";
+    private static bool IsHelp(string s)
+    {
+        return s is "-h" or "--help";
+    }
 
     private static int PrintVersion()
     {
@@ -117,13 +117,10 @@ internal static class Program
             return 127;
         }
 
-        if (!IsExecutable(pluginPath))
-        {
-            Console.Error.WriteLine($"mac: mac-{cmd}: not executable");
-            return 126;
-        }
+        if (IsExecutable(pluginPath)) return RunProcess(pluginPath, passthroughArgs, GetMacRoot());
+        Console.Error.WriteLine($"mac: mac-{cmd}: not executable");
+        return 126;
 
-        return RunProcess(pluginPath, passthroughArgs, GetMacRoot());
     }
 
     private static string? ResolvePluginPath(string cmd)
@@ -179,8 +176,8 @@ internal static class Program
         {
             var mode = File.GetUnixFileMode(path);
             return mode.HasFlag(UnixFileMode.UserExecute)
-                || mode.HasFlag(UnixFileMode.GroupExecute)
-                || mode.HasFlag(UnixFileMode.OtherExecute);
+                   || mode.HasFlag(UnixFileMode.GroupExecute)
+                   || mode.HasFlag(UnixFileMode.OtherExecute);
         }
         catch
         {
@@ -248,7 +245,6 @@ internal static class Program
         {
             var dir = Path.Combine(macroot, "plugins");
             if (Directory.Exists(dir))
-            {
                 foreach (var file in Directory.EnumerateFiles(dir, "mac-*"))
                 {
                     if (!IsExecutable(file))
@@ -258,12 +254,11 @@ internal static class Program
                     if (name.StartsWith("mac-", StringComparison.Ordinal))
                         results.Add(name["mac-".Length..]);
                 }
-            }
         }
 
         // 2) PATH PLUGINS
         var path = Environment.GetEnvironmentVariable("PATH");
-        if (!string.IsNullOrWhiteSpace(path))
+        if (string.IsNullOrWhiteSpace(path)) return results.OrderBy(x => x, StringComparer.Ordinal).ToList();
         {
             foreach (var dir in path.Split(Path.PathSeparator))
             {
@@ -294,44 +289,39 @@ internal static class Program
 
     private static void PrintBuiltinHelp(string name)
     {
-        if (name == "help")
+        switch (name)
         {
-            Console.WriteLine("mac help [command]\n  Show help. Prefers styled plugin if installed.");
-            return;
-        }
-
-        if (name == "version")
-        {
-            Console.WriteLine("mac version\n  Print version.");
-            return;
-        }
-
-        if (name is "list" or "plugins")
-        {
-            Console.WriteLine("mac list [plugins]\n  List built-ins and plugins. Use 'plugins' to list plugins only.");
-            return;
+            case "help":
+                Console.WriteLine("mac help [command]\n  Show help. Prefers styled plugin if installed.");
+                return;
+            case "version":
+                Console.WriteLine("mac version\n  Print version.");
+                return;
+            case "list" or "plugins":
+                Console.WriteLine("mac list [plugins]\n  List built-ins and plugins. Use 'plugins' to list plugins only.");
+                break;
         }
     }
 
     private static void PrintHelp()
     {
         Console.WriteLine("""
-mac - macstack command line
+                          mac - macstack command line
 
-Usage:
-  mac <command> [args]
-  mac help <command>
-  mac <command> --help
+                          Usage:
+                            mac <command> [args]
+                            mac help <command>
+                            mac <command> --help
 
-Built-ins:
-  help            Show help (prefers styled plugin if present)
-  version         Print version
-  list            List commands (built-ins + plugins)
+                          Built-ins:
+                            help            Show help (prefers styled plugin if present)
+                            version         Print version
+                            list            List commands (built-ins + plugins)
 
-Examples:
-  mac list
-  mac list plugins
-  mac help export
-""");
+                          Examples:
+                            mac list
+                            mac list plugins
+                            mac help export
+                          """);
     }
 }
