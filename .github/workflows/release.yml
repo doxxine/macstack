@@ -1,0 +1,61 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            rid: osx-arm64
+            suffix: macos-arm64
+          - os: macos-13
+            rid: osx-x64
+            suffix: macos-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish (AOT)
+        run: |
+          dotnet publish src/mac/mac.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            -o out/mac-${{ matrix.suffix }} \
+            /p:PublishAot=true
+
+      - name: Package
+        run: |
+          cd out
+          tar -czf mac-${{ matrix.suffix }}.tar.gz mac-${{ matrix.suffix }}
+          shasum -a 256 mac-${{ matrix.suffix }}.tar.gz > mac-${{ matrix.suffix }}.tar.gz.sha256
+
+      - name: Create GitHub Release (if missing)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
+          gh release create "${GITHUB_REF_NAME}" --generate-notes
+
+      - name: Upload assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            out/mac-${{ matrix.suffix }}.tar.gz \
+            out/mac-${{ matrix.suffix }}.tar.gz.sha256 \
+            --clobber
