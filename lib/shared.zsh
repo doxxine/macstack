@@ -82,14 +82,9 @@ tag_file() {
   local tags_csv="${2:-}"
   [[ -z "$tags_csv" ]] && return 0
 
-  command -v tag >/dev/null 2>&1 || return 0
-
-  # NORMALIZE: REMOVE SPACES AROUND COMMAS
-  local tags
-  tags="$(print -r -- "$tags_csv" | tr -d '[:space:]')"
-
-  # ONE MODE FLAG ONLY
-  tag -a "$tags" -- "$file"
+  if command -v tag >/dev/null 2>&1; then
+    tag -a "${(s:,:)tags_csv}" "$file"
+  fi
 }
 
 # ── DIAGNOSTICS ─────────────────────────────────────────────────────────────

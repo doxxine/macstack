@@ -13,6 +13,7 @@
         <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
         <SupportedOSPlatform>macos</SupportedOSPlatform>
         <NoWarn>$(NoWarn);CA1416</NoWarn>
+        <DebugType>none</DebugType>
     </PropertyGroup>
 
 </Project>
