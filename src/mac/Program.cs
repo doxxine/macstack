@@ -1,15 +1,11 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Reflection;
 
 internal static class Program
 {
     private static int Main(string[] args)
     {
-        if (args.Length == 0 || IsHelp(args[0]))
-        {
-            PrintHelp();
-            return 0;
-        }
+        if (args.Length == 0 || IsHelp(args[0])) return Help(Array.Empty<string>());
 
         var cmd = args[0];
 
@@ -17,7 +13,7 @@ internal static class Program
         {
             "help" => Help(args[1..]),
             "version" or "--version" or "-V" => PrintVersion(),
-            "list" or "plugins" => ListCommands(),
+            "list" or "plugins" => List(args[1..]),
             _ => ExecPlugin(cmd, args[1..])
         };
     }
@@ -27,26 +23,77 @@ internal static class Program
         return s is "-h" or "--help";
     }
 
-    private static int Help(string[] args)
+    private static int PrintVersion()
     {
-        if (args.Length != 0) return ExecPlugin(args[0], ["--help"]);
-        PrintHelp();
+        var v = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
+        Console.WriteLine($"mac {v}");
         return 0;
     }
 
-    private static int ListCommands()
+    private static int Help(string[] args)
     {
-        // BUILT-INS
-        Console.WriteLine("Built-ins:");
-        Console.WriteLine("  help");
-        Console.WriteLine("  version");
-        Console.WriteLine("  list");
+        // UNIX/CLI INTENT:
+        // - PREFER STYLED HELP PLUGIN IF PRESENT (mac-help)
+        // - FALL BACK TO BUILT-IN HELP OTHERWISE
+        //
+        // BEHAVIOR:
+        // - mac help            -> styled overview (if plugin exists) else built-in help
+        // - mac help plugins    -> plugin list (handled by mac-help plugin if present)
+        // - mac help <cmd>      -> executes plugin help via router (this function), if plugin exists.
 
-        // PLUGINS
+        if (TryExecHelpPlugin(args, out var exitCode))
+            return exitCode;
+
+        // FALLBACK: BUILT-IN HELP (MINIMAL)
+        if (args.Length == 0)
+        {
+            PrintHelp();
+            return 0;
+        }
+
+        // mac help <cmd> -> run <cmd> --help (plugin or built-in)
+        var target = args[0];
+        if (target is "help" or "version" or "list" or "plugins")
+        {
+            PrintBuiltinHelp(target);
+            return 0;
+        }
+
+        return ExecPlugin(target, new[] { "--help" });
+    }
+
+    private static bool TryExecHelpPlugin(string[] args, out int exitCode)
+    {
+        // ONLY EXECUTE mac-help IF IT EXISTS AS A PLUGIN.
+        // THIS KEEPS THE ROUTER MINIMAL AND ALLOWS STYLED UX IN SHELL.
+        var pluginPath = ResolvePluginPath("help");
+        if (pluginPath is null)
+        {
+            exitCode = 0;
+            return false;
+        }
+
+        exitCode = RunProcess(pluginPath, args, GetMacRoot());
+        return true;
+    }
+
+    private static int List(string[] args)
+    {
+        // mac list            -> built-ins + plugins
+        // mac list plugins    -> plugins only
+        var pluginsOnly = args.Length > 0 && args[0] == "plugins";
+
+        if (!pluginsOnly)
+        {
+            Console.WriteLine("Built-ins:");
+            Console.WriteLine("  help");
+            Console.WriteLine("  version");
+            Console.WriteLine("  list");
+            Console.WriteLine();
+        }
+
         var plugins = DiscoverPlugins();
-        Console.WriteLine();
         Console.WriteLine("Plugins:");
-
         if (plugins.Count == 0)
         {
             Console.WriteLine("  (none found)");
@@ -59,83 +106,38 @@ internal static class Program
         return 0;
     }
 
-    private static List<string> DiscoverPlugins()
-    {
-        var results = new HashSet<string>(StringComparer.Ordinal);
-        var macroot = GetMacRoot();
-
-        if (!string.IsNullOrWhiteSpace(macroot))
-        {
-            var dir = Path.Combine(macroot, "plugins");
-            if (Directory.Exists(dir))
-                foreach (var file in Directory.EnumerateFiles(dir, "mac-*"))
-                {
-                    var name = Path.GetFileName(file);
-                    if (name.StartsWith("mac-", StringComparison.Ordinal) && IsExecutable(file))
-                        results.Add(name["mac-".Length..]);
-                }
-        }
-
-        var path = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrWhiteSpace(path)) return results.OrderBy(x => x, StringComparer.Ordinal).ToList();
-        {
-            foreach (var dir in path.Split(Path.PathSeparator))
-            {
-                if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
-                    continue;
-
-                try
-                {
-                    foreach (var file in Directory.EnumerateFiles(dir, "mac-*"))
-                    {
-                        var name = Path.GetFileName(file);
-                        if (name.StartsWith("mac-", StringComparison.Ordinal) && IsExecutable(file))
-                            results.Add(name["mac-".Length..]);
-                    }
-                }
-                catch
-                {
-                    // IGNORE UNREADABLE DIRECTORIES
-                }
-            }
-        }
-
-        return results.OrderBy(x => x, StringComparer.Ordinal).ToList();
-    }
-
-    private static int PrintVersion()
-    {
-        var v = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
-        Console.WriteLine($"mac {v}");
-        return 0;
-    }
-
     private static int ExecPlugin(string cmd, string[] passthroughArgs)
     {
-        var pluginName = $"mac-{cmd}";
-        var macroot = GetMacRoot();
-
-        var repoPluginPath = macroot is null
-            ? null
-            : Path.Combine(macroot, "plugins", pluginName);
-
-        var pluginPath =
-            repoPluginPath is not null && File.Exists(repoPluginPath) ? repoPluginPath : FindOnPath(pluginName);
+        var pluginPath = ResolvePluginPath(cmd);
 
         if (pluginPath is null)
         {
             Console.Error.WriteLine($"mac: unknown command: {cmd}");
-            Console.Error.WriteLine("Try 'mac --help'.");
-            return 127; // UNIX: command not found
+            Console.Error.WriteLine("Try 'mac help' or 'mac list'.");
+            return 127;
         }
 
-        if (!IsExecutable(pluginPath))
+        if (IsExecutable(pluginPath)) return RunProcess(pluginPath, passthroughArgs, GetMacRoot());
+        Console.Error.WriteLine($"mac: mac-{cmd}: not executable");
+        return 126;
+
+    }
+
+    private static string? ResolvePluginPath(string cmd)
+    {
+        var pluginName = $"mac-{cmd}";
+        var macroot = GetMacRoot();
+
+        // 1) REPO-LOCAL: <MACROOT>/plugins/mac-<cmd>
+        if (!string.IsNullOrWhiteSpace(macroot))
         {
-            Console.Error.WriteLine($"mac: {pluginName}: not executable");
-            return 126; // UNIX: found but cannot execute
+            var repoPlugin = Path.Combine(macroot, "plugins", pluginName);
+            if (File.Exists(repoPlugin))
+                return repoPlugin;
         }
 
-        return RunProcess(pluginPath, passthroughArgs, macroot);
+        // 2) PATH: mac-<cmd>
+        return FindOnPath(pluginName);
     }
 
     private static int RunProcess(string fileName, string[] args, string? macroot)
@@ -150,6 +152,7 @@ internal static class Program
         foreach (var a in args)
             p.StartInfo.ArgumentList.Add(a);
 
+        // FORWARD MACROOT FOR PLUGINS
         if (!string.IsNullOrWhiteSpace(macroot))
             p.StartInfo.Environment["MACROOT"] = macroot;
 
@@ -184,21 +187,31 @@ internal static class Program
 
     private static string? GetMacRoot()
     {
+        // 1) EXPLICIT ENV WINS
         var env = Environment.GetEnvironmentVariable("MACROOT");
         if (!string.IsNullOrWhiteSpace(env) && Directory.Exists(env))
             return env;
 
+        // 2) RESOLVE FROM EXECUTABLE LOCATION
         var exe = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(exe))
             return null;
 
-        var dir = Path.GetDirectoryName(exe);
-        if (string.IsNullOrWhiteSpace(dir))
+        var exeDir = Path.GetDirectoryName(exe);
+        if (string.IsNullOrWhiteSpace(exeDir))
             return null;
 
-        var parent = Directory.GetParent(dir);
-        if (parent is not null && Path.GetFileName(dir) == ".bin")
-            return parent.FullName;
+        // DEV MODE: <repo>/.bin/mac -> repo is parent of .bin
+        if (Path.GetFileName(exeDir) == ".bin")
+        {
+            var repo = Directory.GetParent(exeDir);
+            if (repo is not null && Directory.Exists(Path.Combine(repo.FullName, "plugins")))
+                return repo.FullName;
+        }
+
+        // INSTALLED MODE (OPTIONAL): <root>/plugins next to executable
+        if (Directory.Exists(Path.Combine(exeDir, "plugins")))
+            return exeDir;
 
         return null;
     }
@@ -222,10 +235,78 @@ internal static class Program
         return null;
     }
 
+    private static List<string> DiscoverPlugins()
+    {
+        var results = new HashSet<string>(StringComparer.Ordinal);
+        var macroot = GetMacRoot();
+
+        // 1) REPO PLUGINS
+        if (!string.IsNullOrWhiteSpace(macroot))
+        {
+            var dir = Path.Combine(macroot, "plugins");
+            if (Directory.Exists(dir))
+                foreach (var file in Directory.EnumerateFiles(dir, "mac-*"))
+                {
+                    if (!IsExecutable(file))
+                        continue;
+
+                    var name = Path.GetFileName(file);
+                    if (name.StartsWith("mac-", StringComparison.Ordinal))
+                        results.Add(name["mac-".Length..]);
+                }
+        }
+
+        // 2) PATH PLUGINS
+        var path = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(path)) return results.OrderBy(x => x, StringComparer.Ordinal).ToList();
+        {
+            foreach (var dir in path.Split(Path.PathSeparator))
+            {
+                if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+                    continue;
+
+                try
+                {
+                    foreach (var file in Directory.EnumerateFiles(dir, "mac-*"))
+                    {
+                        if (!IsExecutable(file))
+                            continue;
+
+                        var name = Path.GetFileName(file);
+                        if (name.StartsWith("mac-", StringComparison.Ordinal))
+                            results.Add(name["mac-".Length..]);
+                    }
+                }
+                catch
+                {
+                    // IGNORE UNREADABLE DIRECTORIES
+                }
+            }
+        }
+
+        return results.OrderBy(x => x, StringComparer.Ordinal).ToList();
+    }
+
+    private static void PrintBuiltinHelp(string name)
+    {
+        switch (name)
+        {
+            case "help":
+                Console.WriteLine("mac help [command]\n  Show help. Prefers styled plugin if installed.");
+                return;
+            case "version":
+                Console.WriteLine("mac version\n  Print version.");
+                return;
+            case "list" or "plugins":
+                Console.WriteLine("mac list [plugins]\n  List built-ins and plugins. Use 'plugins' to list plugins only.");
+                break;
+        }
+    }
+
     private static void PrintHelp()
     {
         Console.WriteLine("""
-                          mac — macstack command line
+                          mac - macstack command line
 
                           Usage:
                             mac <command> [args]
@@ -233,14 +314,14 @@ internal static class Program
                             mac <command> --help
 
                           Built-ins:
+                            help            Show help (prefers styled plugin if present)
                             version         Print version
-                            help            Show help for a command
+                            list            List commands (built-ins + plugins)
 
-                          Plugins:
-                            mac <cmd> runs plugins named mac-<cmd> (repo plugins/ first, then PATH)
-
-                          Options:
-                            -h, --help      Show help
+                          Examples:
+                            mac list
+                            mac list plugins
+                            mac help export
                           """);
     }
 }
