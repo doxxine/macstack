@@ -1,0 +1,27 @@
+# MACOS
+.DS_Store
+.AppleDouble
+.LSOverride
+__MACOSX/
+
+# DOTNET
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.pidb
+*.booproj
+*.svclog
+
+# RIDER / JETBRAINS
+.idea/
+*.sln.iml
+
+# LOCAL BUILD OUTPUT (YOUR UNIX TOOL)
+.bin/
+
+# LOGS / TEMP
+*.log
+tmp/
+temp/
