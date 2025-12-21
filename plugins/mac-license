@@ -1,22 +1,46 @@
 #!/bin/zsh
-# MACSTACK PLUGIN: mac-license
+    # MACSTACK PLUGIN: mac-license
+    # STYLE: UNIX / SNAKE_CASE
+    # SHELL: ZSH
+    #
+    # PURPOSE: LICENSE/REPO HELPERS
+
+    set -euo pipefail
+
+    # DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+    MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+    # PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
+    MACROOT="$(cd "$MACROOT/.." && pwd)"
+
+    # LOAD SHARED LIB
+    if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
+      echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
+      exit 1
+    fi
+    source "$MACROOT/lib/shared.zsh"
+    macstack_load_config || true
+
+    command="${1:-}"
+    if [[ -z "$command" || "$command" == "help" || "$command" == "--help" || "$command" == "-h" ]]; then
+      cat <<'EOF'
+    mac license — repository/license helpers
+
+Usage:
+  mac license show
+  mac license mit
+
+    EOF
+      exit 0
+    fi
+
+    shift
+    fn="license:${command}"
+
+    # MACSTACK PLUGIN: mac-license
 # STYLE: UNIX / SNAKE_CASE
 # SHELL: ZSH
 
 set -euo pipefail
-
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-MACROOT="$(cd "$MACROOT/.." && pwd)"
-
-# LOAD SHARED LIB
-if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-  exit 1
-fi
-source "$MACROOT/lib/shared.zsh"
-macstack_load_config || true
 
 MACSTACK_MODE="flat"
 MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)"
