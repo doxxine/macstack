@@ -2,6 +2,10 @@
 # MACSTACK PLUGIN: mac-doctor
 # STYLE: UNIX / SNAKE_CASE
 # SHELL: ZSH
+#
+# PURPOSE:
+# - QUICK CHECKS (DEFAULT)
+# - STRUCTURE AUDIT (--audit): XDG + WORKSPACE LAYOUT CONSISTENCY
 
 set -euo pipefail
 
@@ -10,69 +14,165 @@ MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
 # PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
 MACROOT="$(cd "$MACROOT/.." && pwd)"
 
+# LOAD SHARED LIB
+if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
+  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
+  exit 1
+fi
 source "$MACROOT/lib/shared.zsh"
-
-# LOAD CONFIG (DEV + XDG; OPTIONAL)
 macstack_load_config || true
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+mode="${1:-}"
+
+if [[ "$mode" == "--help" || "$mode" == "-h" ]]; then
   cat <<'EOF'
-mac doctor — system sanity checks
+mac doctor — sanity checks
 
 Usage:
   mac doctor
+  mac doctor --audit
 
-What it checks:
-  - shared library present
-  - config file present
-  - brew, git, pandoc availability (best-effort)
+Default:
+  Lightweight checks for core tooling and config presence.
+
+Audit:
+  Verifies XDG + workspace structure consistency:
+  - ~/.config, ~/.local/share, ~/.cache, ~/.local/bin
+  - PATH contains ~/.local/bin (preferably only once)
+  - ~/workspace layout (tools, projects, raw/inbox, raw/export, org, archive, temp)
+  - detects common redundancies (workspace/share, workspace/.files, workspace/setup)
+
+Exit codes:
+  0 OK
+  1 warnings/failures detected
 EOF
   exit 0
 fi
 
-CONFIG_FILE="$MACROOT/macstack.conf"
-SHARED_LIB="$MACROOT/lib/shared.zsh"
+fail=0
 
-echo "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
-echo "${COLOR_BOLD}🩺  MACSTACK SYSTEM CHECK${COLOR_RESET}"
-echo "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+ok()    { print -r -- "${COLOR_SUCCESS}OK${COLOR_RESET}   $*"; }
+warn()  { print -u2 -r -- "${COLOR_WARN}WARN${COLOR_RESET} $*"; fail=1; }
+bad()   { print -u2 -r -- "${COLOR_ERR}FAIL${COLOR_RESET} $*"; fail=1; }
 
-Fail=0
+has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
-CheckFile() {
-  local Label="$1"
-  local Path="$2"
-  echo -n "$Label: "
-  if [[ -f "$Path" ]]; then
-    echo "${COLOR_SUCCESS}FOUND${COLOR_RESET}"
+check_dir() {
+  local p="$1"
+  local label="$2"
+  if [[ -d "$p" ]]; then ok "$label: $p"; else bad "$label: missing ($p)"; fi
+}
+
+check_file() {
+  local p="$1"
+  local label="$2"
+  if [[ -f "$p" ]]; then ok "$label: $p"; else warn "$label: missing ($p)"; fi
+}
+
+check_cmd() {
+  local c="$1"
+  if has_cmd "$c"; then ok "cmd: $c"; else warn "cmd: $c missing"; fi
+}
+
+print_header() {
+  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+  print -r -- "${COLOR_BOLD}🩺  DOCTOR${COLOR_RESET}  ${COLOR_INFO}${1:-}${COLOR_RESET}"
+  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+}
+
+default_checks() {
+  print_header "QUICK CHECKS"
+
+  check_file "$MACROOT/lib/shared.zsh" "shared lib"
+  # CONFIG RESOLUTION
+  if cfg="$(macstack_config_path 2>/dev/null)"; then
+    ok "config: $cfg"
   else
-    echo "${COLOR_ERR}MISSING${COLOR_RESET}"
-    Fail=1
+    warn "config: not found (run: mac init)"
+  fi
+
+  check_cmd "brew"
+  check_cmd "git"
+  check_cmd "gh"
+  check_cmd "dotnet"
+  check_cmd "pandoc"
+  check_cmd "weasyprint"
+  check_cmd "tag"
+  check_cmd "xcode-select"
+}
+
+audit_checks() {
+  print_header "AUDIT (XDG + WORKSPACE)"
+
+  # XDG BASE
+  local xdg_config="${XDG_CONFIG_HOME:-$HOME/.config}"
+  local xdg_data="${XDG_DATA_HOME:-$HOME/.local/share}"
+  local xdg_cache="${XDG_CACHE_HOME:-$HOME/.cache}"
+  local xdg_bin="$HOME/.local/bin"
+
+  check_dir "$xdg_config" "XDG_CONFIG_HOME"
+  check_dir "$xdg_data" "XDG_DATA_HOME"
+  check_dir "$xdg_cache" "XDG_CACHE_HOME"
+  check_dir "$xdg_bin" "XDG BIN"
+
+  # PATH CONTAINS ~/.local/bin
+  if print -r -- "$PATH" | tr ':' '\n' | grep -qx "$xdg_bin"; then
+    ok "PATH contains: $xdg_bin"
+  else
+    bad "PATH missing: $xdg_bin (add: export PATH=\"$HOME/.local/bin:\$PATH\")"
+  fi
+
+  # DUPLICATE PATH ENTRIES (BEST EFFORT)
+  local dup_count
+  dup_count="$(print -r -- "$PATH" | tr ':' '\n' | sort | uniq -d | wc -l | tr -d ' ')"
+  if [[ "$dup_count" == "0" ]]; then
+    ok "PATH duplicates: none"
+  else
+    warn "PATH duplicates: $dup_count (consider: typeset -U PATH path)"
+  fi
+
+  # WORKSPACE
+  local ws="$HOME/workspace"
+  check_dir "$ws" "workspace"
+
+  check_dir "$ws/tools" "workspace/tools"
+  check_dir "$ws/projects" "workspace/projects"
+  check_dir "$ws/raw" "workspace/raw"
+  check_dir "$ws/raw/inbox" "workspace/raw/inbox"
+  check_dir "$ws/raw/export" "workspace/raw/export"
+  check_dir "$ws/org" "workspace/org"
+  check_dir "$ws/archive" "workspace/archive"
+  check_dir "$ws/temp" "workspace/temp"
+
+  # REDUNDANCIES / ANTI-PATTERNS
+  if [[ -d "$ws/share" ]]; then
+    warn "redundant: workspace/share exists (prefer: ~/.local/share)"
+  else
+    ok "workspace/share: not present"
+  fi
+
+  if [[ -d "$ws/dotfiles" ]]; then
+    warn "redundant: workspace/dotfiles exists (prefer: chezmoi + ~/.config)"
+  else
+    ok "workspace/dotfiles: not present"
+  fi
+
+  if [[ -d "$ws/setup" ]]; then
+    warn "redundant: workspace/setup exists (prefer: bootstrap repo)"
+  else
+    ok "workspace/setup: not present"
+  fi
+
+  # MACOS DEVIATIONS (INFO ONLY)
+  if [[ -d "$HOME/Library/Application Support" ]]; then
+    ok "macOS user data: ~/Library/* (expected)"
   fi
 }
 
-CheckCmd() {
-  local Label="$1"
-  local Cmd="$2"
-  echo -n "$Label: "
-  if command -v "$Cmd" >/dev/null 2>&1; then
-    echo "${COLOR_SUCCESS}INSTALLED${COLOR_RESET}"
-  else
-    echo "${COLOR_WARN}MISSING${COLOR_RESET}"
-  fi
-}
+if [[ "$mode" == "--audit" ]]; then
+  audit_checks
+else
+  default_checks
+fi
 
-CheckFile "📦 Shared Library" "$SHARED_LIB"
-CheckFile "⚙️  Config File" "$CONFIG_FILE"
-
-echo -n "📁 MACROOT: "
-[[ -d "$MACROOT" ]] && echo "${COLOR_SUCCESS}${MACROOT}${COLOR_RESET}" || { echo "${COLOR_ERR}INVALID${COLOR_RESET}"; Fail=1; }
-
-CheckCmd "🍺 brew" "brew"
-CheckCmd "🧬 git" "git"
-CheckCmd "🛠 pandoc" "pandoc"
-CheckCmd "🧾 weasyprint" "weasyprint"
-CheckCmd "🏷 tag (Finder tags)" "tag"
-CheckCmd "🧰 xcode-select" "xcode-select"
-
-exit "$Fail"
+exit "$fail"
