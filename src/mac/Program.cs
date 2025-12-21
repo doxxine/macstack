@@ -120,7 +120,6 @@ internal static class Program
         if (IsExecutable(pluginPath)) return RunProcess(pluginPath, passthroughArgs, GetMacRoot());
         Console.Error.WriteLine($"mac: mac-{cmd}: not executable");
         return 126;
-
     }
 
     private static string? ResolvePluginPath(string cmd)
@@ -298,7 +297,8 @@ internal static class Program
                 Console.WriteLine("mac version\n  Print version.");
                 return;
             case "list" or "plugins":
-                Console.WriteLine("mac list [plugins]\n  List built-ins and plugins. Use 'plugins' to list plugins only.");
+                Console.WriteLine(
+                    "mac list [plugins]\n  List built-ins and plugins. Use 'plugins' to list plugins only.");
                 break;
         }
     }

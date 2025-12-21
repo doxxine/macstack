@@ -2,6 +2,8 @@
 # MACSTACK PLUGIN: mac-tools
 # STYLE: UNIX / SNAKE_CASE
 # SHELL: ZSH
+#
+# PURPOSE: SMALL TOOLING UTILITIES (SERVE, FS, TRIM, UUID, TIMESTAMPS, ...)
 
 set -euo pipefail
 
@@ -18,61 +20,104 @@ fi
 source "$MACROOT/lib/shared.zsh"
 macstack_load_config || true
 
-MACSTACK_MODE="subcommand:1"
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)"
-source "$MACROOT/lib/shared.zsh"
+command="${1:-}"
+if [[ -z "$command" || "$command" == "help" || "$command" == "--help" || "$command" == "-h" ]]; then
+  cat <<'EOF'
+mac tools — tooling helpers
+
+Usage:
+  mac tools serve [port]
+  mac tools fs [paths...]
+  mac tools trim <in> <from> <to> [out]
+  mac tools convert-webp <outdir> <w> <h>
+  mac tools mkexec <file>
+  mac tools retry <cmd...>
+  mac tools uuid
+  mac tools uuid-short
+  mac tools timestamp
+  mac tools timestamp-ms
+EOF
+  exit 0
+fi
+
+shift
+fn="tools:${command}"
 
 case "$fn" in
-
-  "tools:serve")
-    port=${1:-8000}
-    echo -e "${COLOR_INFO}>> serving on http://localhost:$port${COLOR_RESET}"
+  tools:serve)
+    port="${1:-8000}"
+    print -r -- "${COLOR_INFO}>> serving on http://localhost:${port}${COLOR_RESET}"
     python3 -m http.server "$port"
     ;;
 
-  "tools:fs")
-    echo -e "${COLOR_INFO}>> size of: ${*:-.[^.]* *}${COLOR_RESET}"
-    du -sh -- "${@:-.[^.]* *}"
+  tools:fs)
+    print -r -- "${COLOR_INFO}>> size of: ${*:-.[^.]* *}${COLOR_RESET}"
+    # NOTE: YOUR ORIGINAL DEFAULT EXPANSION WAS A BIT WEIRD; KEEP SIMPLE:
+    if [[ "$#" -gt 0 ]]; then
+      du -sh -- "$@"
+    else
+      du -sh -- .[^.]* * 2>/dev/null || true
+    fi
     ;;
 
-  "tools:trim")
-    echo -e "${COLOR_INFO}>> trimming video from $2 to $3${COLOR_RESET}"
-    ffmpeg -ss "$2" -to "$3" -i "$1" -c copy "${4:-trimmed-${1%.*}.${1##*.}}"
+  tools:trim)
+    # ARGS: <in> <from> <to> [out]
+    in="${1:-}"; from="${2:-}"; to="${3:-}"; out="${4:-}"
+    [[ -n "$in" && -n "$from" && -n "$to" ]] || { print_error "USAGE: mac tools trim <in> <from> <to> [out]"; exit 2; }
+    [[ -n "$out" ]] || out="trimmed-${in%.*}.${in##*.}"
+    print -r -- "${COLOR_INFO}>> trimming video from $from to $to${COLOR_RESET}"
+    ffmpeg -ss "$from" -to "$to" -i "$in" -c copy "$out"
     ;;
 
-  "tools:convert-webp")
-    echo -e "${COLOR_INFO}>> converting all PNG to WebP in $2 with size $3x$4${COLOR_RESET}"
-    mogrify -path "$2" -resize "$3"x"$4" -format webp *.png
+  tools:convert-webp)
+    # ARGS: <outdir> <w> <h>
+    outdir="${1:-}"; w="${2:-}"; h="${3:-}"
+    [[ -n "$outdir" && -n "$w" && -n "$h" ]] || { print_error "USAGE: mac tools convert-webp <outdir> <w> <h>"; exit 2; }
+    mkdir -p "$outdir"
+    print -r -- "${COLOR_INFO}>> converting all PNG to WebP in $outdir with size ${w}x${h}${COLOR_RESET}"
+    mogrify -path "$outdir" -resize "${w}x${h}" -format webp *.png
     ;;
 
-  "tools:mkexec")
-    echo -e "${COLOR_INFO}>> chmod +x $1${COLOR_RESET}"
-    chmod +x "$1"
+  tools:mkexec)
+    file="${1:-}"
+    [[ -n "$file" ]] || { print_error "USAGE: mac tools mkexec <file>"; exit 2; }
+    print -r -- "${COLOR_INFO}>> chmod +x $file${COLOR_RESET}"
+    chmod +x "$file"
     ;;
 
-  "tools:retry")
-    echo -e "${COLOR_INFO}>> retrying command until success${COLOR_RESET}"
-    local n=0; until "$@"; do ((n++)); sleep 1; done
+  tools:retry)
+    [[ "$#" -gt 0 ]] || { print_error "USAGE: mac tools retry <cmd...>"; exit 2; }
+    print -r -- "${COLOR_INFO}>> retrying command until success${COLOR_RESET}"
+    local n=0
+    until "$@"; do
+      ((n++))
+      sleep 1
+    done
     ;;
 
-  "tools:uuid")
-    echo -e "${COLOR_INFO}>> generating UUID${COLOR_RESET}"
+  tools:uuid)
+    print -r -- "${COLOR_INFO}>> generating UUID${COLOR_RESET}"
     uuidgen
     ;;
 
-  "tools:timestamp")
-    echo -e "${COLOR_INFO}>> unix timestamp now:${COLOR_RESET}"
+  tools:timestamp)
+    print -r -- "${COLOR_INFO}>> unix timestamp now:${COLOR_RESET}"
     date +%s
     ;;
 
-  "tools:timestamp:ms")
-    echo -e "${COLOR_INFO}>> unix timestamp (ms) now:${COLOR_RESET}"
+  tools:timestamp-ms)
+    print -r -- "${COLOR_INFO}>> unix timestamp (ms) now:${COLOR_RESET}"
     echo $(( $(date +%s%N) / 1000000 ))
     ;;
 
-  "tools:uuid:short")
-    echo -e "${COLOR_INFO}>> short uuid:${COLOR_RESET}"
+  tools:uuid-short)
+    print -r -- "${COLOR_INFO}>> short uuid:${COLOR_RESET}"
     uuidgen | cut -c1-8
     ;;
 
+  *)
+    print_error "UNKNOWN TOOLS SUBCOMMAND: ${command}"
+    print_error "TRY: mac tools --help"
+    exit 2
+    ;;
 esac

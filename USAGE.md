@@ -1,4 +1,3 @@
-
 # MacStack — Usage
 
 ## Invocation
@@ -20,6 +19,7 @@ mac <command> --help
 Any executable named `mac-<command>` is a valid plugin.
 
 Resolution order:
+
 1. `<repo>/plugins/mac-<command>`
 2. `$PATH/mac-<command>`
 
