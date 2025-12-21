@@ -1,63 +1,58 @@
 #!/bin/zsh
-    # MACSTACK PLUGIN: mac-net
-    # STYLE: UNIX / SNAKE_CASE
-    # SHELL: ZSH
-    #
-    # PURPOSE: NETWORK HELPERS
+# MACSTACK PLUGIN: mac-net
+# STYLE: UNIX / SNAKE_CASE
 
-    set -euo pipefail
+set -euo pipefail
 
-    # DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-    MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-    # PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-    MACROOT="$(cd "$MACROOT/.." && pwd)"
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+MACROOT="$(cd "$MACROOT/.." && pwd)"
 
-    # LOAD SHARED LIB
-    if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-      echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-      exit 1
-    fi
-    source "$MACROOT/lib/shared.zsh"
-    macstack_load_config || true
+[[ -f "$MACROOT/lib/shared.zsh" ]] || { echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2; exit 1; }
+source "$MACROOT/lib/shared.zsh"
+macstack_load_config || true
 
-    command="${1:-}"
-    if [[ -z "$command" || "$command" == "help" || "$command" == "--help" || "$command" == "-h" ]]; then
-      cat <<'EOF'
-    mac net — network helpers
+command="${1:-}"
+if [[ -z "$command" || "$command" == "help" || "$command" == "--help" || "$command" == "-h" ]]; then
+  cat <<'EOF'
+mac net — network helpers
 
 Usage:
   mac net ip
   mac net dns
   mac net flush-dns
   mac net routes
+EOF
+  exit 0
+fi
 
-    EOF
-      exit 0
-    fi
+shift
+fn="net:${command}"
 
-    shift
-    fn="net:${command}"
-
-    case "$fn" in
-
-  "net:ip")
-    echo -e "${COLOR_INFO}>> public IP${COLOR_RESET}"
-    dig +short myip.opendns.com @resolver1.opendns.com
+case "$fn" in
+  net:ip)
+    print -r -- "${COLOR_INFO}>> public IP${COLOR_RESET}"
+    curl -s https://ifconfig.me && echo
     ;;
 
-  "net:local")
-    echo -e "${COLOR_INFO}>> local IP${COLOR_RESET}"
-    ipconfig getifaddr en0
+  net:dns)
+    print -r -- "${COLOR_INFO}>> DNS servers${COLOR_RESET}"
+    scutil --dns | grep 'nameserver\[[0-9]*\]' | head -n 10
     ;;
 
-  "net:ssid")
-    echo -e "${COLOR_INFO}>> connected Wi-Fi SSID${COLOR_RESET}"
-    /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I | awk -F ": " '/ SSID/ {print $2}'
+  net:flush-dns)
+    print -r -- "${COLOR_INFO}>> flushing DNS cache${COLOR_RESET}"
+    sudo killall -HUP mDNSResponder
     ;;
 
-  "net:ports")
-    echo -e "${COLOR_INFO}>> listening ports (TCP)${COLOR_RESET}"
-    lsof -iTCP -sTCP:LISTEN -n -P
+  net:routes)
+    print -r -- "${COLOR_INFO}>> routes${COLOR_RESET}"
+    netstat -rn
     ;;
 
+  *)
+    print_error "UNKNOWN NET SUBCOMMAND: ${command}"
+    print_error "TRY: mac net --help"
+    exit 2
+    ;;
 esac

@@ -1,78 +1,80 @@
 #!/bin/zsh
-    # MACSTACK PLUGIN: mac-ssh
-    # STYLE: UNIX / SNAKE_CASE
-    # SHELL: ZSH
-    #
-    # PURPOSE: SSH HELPERS
+# MACSTACK PLUGIN: mac-ssh
+# STYLE: UNIX / SNAKE_CASE
 
-    set -euo pipefail
+set -euo pipefail
 
-    # DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-    MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-    # PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-    MACROOT="$(cd "$MACROOT/.." && pwd)"
+# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
+MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
+MACROOT="$(cd "$MACROOT/.." && pwd)"
 
-    # LOAD SHARED LIB
-    if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-      echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-      exit 1
-    fi
-    source "$MACROOT/lib/shared.zsh"
-    macstack_load_config || true
+[[ -f "$MACROOT/lib/shared.zsh" ]] || { echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2; exit 1; }
+source "$MACROOT/lib/shared.zsh"
+macstack_load_config || true
 
-    command="${1:-}"
-    if [[ -z "$command" || "$command" == "help" || "$command" == "--help" || "$command" == "-h" ]]; then
-      cat <<'EOF'
-    mac ssh — ssh helpers
+command="${1:-}"
+if [[ -z "$command" || "$command" == "help" || "$command" == "--help" || "$command" == "-h" ]]; then
+  cat <<'EOF'
+mac ssh — ssh helpers
 
 Usage:
-  mac ssh keygen
   mac ssh pubkey
-  mac ssh agent
-  mac ssh knownhosts-clean
+  mac ssh upload <user@host>
+  mac ssh df <user@host:/path/file>
+  mac ssh ddir <user@host:/path/dir>
+  mac ssh sync-local <src> <user@host:/dst>
+  mac ssh sync-remote <user@host:/src> <dst>
+  mac ssh list
+EOF
+  exit 0
+fi
 
-    EOF
-      exit 0
+shift
+fn="ssh:${command}"
+
+case "$fn" in
+  ssh:pubkey)
+    print -r -- "${COLOR_INFO}>> public key (also copied to clipboard):${COLOR_RESET}"
+    if [[ -f "$HOME/.ssh/id_ed25519.pub" ]]; then
+      cat "$HOME/.ssh/id_ed25519.pub" | tee >(pbcopy)
+    else
+      cat "$HOME/.ssh/id_rsa.pub" | tee >(pbcopy)
     fi
+    ;;
 
-    shift
-    fn="ssh:${command}"
-
-    case "$fn" in
-
-"ssh:key")
-  echo -e "${COLOR_INFO}>> public key (also copied to clipboard):${COLOR_RESET}"
-  cat "$HOME/.ssh/id_rsa.pub" | tee >(pbcopy)
-  ;;
-
-  "ssh:df")
-    echo -e "${COLOR_INFO}>> downloading file via scp${COLOR_RESET}"
+  ssh:df)
+    print -r -- "${COLOR_INFO}>> downloading file via scp${COLOR_RESET}"
     scp "$1" .
     ;;
 
-  "ssh:ddir")
-    echo -e "${COLOR_INFO}>> downloading folder via scp -r${COLOR_RESET}"
+  ssh:ddir)
+    print -r -- "${COLOR_INFO}>> downloading folder via scp -r${COLOR_RESET}"
     scp -r "$1" .
     ;;
 
-  "ssh:upload")
-    echo -e "${COLOR_INFO}>> uploading public key via ssh-copy-id${COLOR_RESET}"
+  ssh:upload)
+    print -r -- "${COLOR_INFO}>> uploading public key via ssh-copy-id${COLOR_RESET}"
     ssh-copy-id "$1"
     ;;
 
-  "ssh:sync:local")
-    echo -e "${COLOR_INFO}>> rsync local → remote${COLOR_RESET}"
+  ssh:sync-local)
+    print -r -- "${COLOR_INFO}>> rsync local -> remote${COLOR_RESET}"
     rsync -avz "$1" "$2"
     ;;
 
-  "ssh:sync:remote")
-    echo -e "${COLOR_INFO}>> rsync remote → local${COLOR_RESET}"
+  ssh:sync-remote)
+    print -r -- "${COLOR_INFO}>> rsync remote -> local${COLOR_RESET}"
     rsync -avz "$1" "$2"
     ;;
 
-  "ssh:list")
-    echo -e "${COLOR_INFO}>> known SSH hosts:${COLOR_RESET}"
+  ssh:list)
+    print -r -- "${COLOR_INFO}>> known SSH hosts:${COLOR_RESET}"
     cat ~/.ssh/known_hosts | cut -d',' -f1 | uniq
     ;;
 
+  *)
+    print_error "UNKNOWN SSH SUBCOMMAND: ${command}"
+    print_error "TRY: mac ssh --help"
+    exit 2
+    ;;
 esac
