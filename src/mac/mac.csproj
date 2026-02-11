@@ -14,6 +14,7 @@
         <SupportedOSPlatform>macos</SupportedOSPlatform>
         <NoWarn>$(NoWarn);CA1416</NoWarn>
         <DebugType>none</DebugType>
+        <Version>0.2.0</Version>
     </PropertyGroup>
 
 </Project>
