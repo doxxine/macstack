@@ -1,37 +1,11 @@
 #!/bin/zsh
 # MACSTACK PLUGIN: mac-system
-# STYLE: UNIX / SNAKE_CASE
-# SHELL: ZSH
-#
-# PURPOSE:
-# - SYSTEM UPDATE (BREW / CHEZMOI / OMZ / GIT REPOS)
-# - SMALL SYSTEM UTILITIES (LOCK / DNS / CLEANUP / ETC.)
-#
-# CONFIG (OPTIONAL, VIA macstack_load_config):
-# - USE_CHEZMOI_PULL="true|false"
-# - OMZ_PLUGIN_ROOT="..."                 # FOLDER CONTAINING MULTIPLE GIT REPOS
-# - WORKSPACE_TOOLS_ROOT="..."            # FOLDER CONTAINING MULTIPLE GIT REPOS
-# - SYSTEM_UPDATE_PULL_QUIET="true|false" # DEFAULT: true
-#
-# NOTES:
-# - THIS SCRIPT RUNS WITH 'set -euo pipefail'. ALWAYS GUARD OPTIONAL VARS WITH ${VAR:-}.
-# - SOME COMMANDS REQUIRE sudo.
+# @describe: System updates and utilities
 
 set -euo pipefail
 
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-MACROOT="$(cd "$MACROOT/.." && pwd)"
-
-# LOAD SHARED LIB
-if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-  exit 1
-fi
-source "$MACROOT/lib/shared.zsh"
-
-# LOAD CONFIG (DEV + XDG; OPTIONAL FOR SYSTEM COMMANDS)
+: "${MACROOT:=$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)}"
+source "$MACROOT/lib/bootstrap.zsh"
 macstack_load_config || true
 
 command="${1:-}"
@@ -62,7 +36,6 @@ EOF
 fi
 
 shift
-fn="system:${command}"
 
 # HELPERS
 pull_repo_dir() {
@@ -70,11 +43,11 @@ pull_repo_dir() {
   local name="$2"
   local quiet="${SYSTEM_UPDATE_PULL_QUIET:-true}"
 
-  print -r -- " ${COLOR_SUCCESS}↪ ${name}${COLOR_RESET}"
+  print -r -- " ${COLOR_SUCCESS}>> ${name}${COLOR_RESET}"
   if [[ "$quiet" == "true" ]]; then
-    git -C "$repo" pull --ff-only --quiet && print -r -- "  ✓ Updated" || print -r -- "  ! Skipped/No changes"
+    git -C "$repo" pull --ff-only --quiet && print -r -- "  >> updated" || print -r -- "  ! skipped/no changes"
   else
-    git -C "$repo" pull --ff-only && print -r -- "  ✓ Updated" || print -r -- "  ! Skipped/No changes"
+    git -C "$repo" pull --ff-only && print -r -- "  >> updated" || print -r -- "  ! skipped/no changes"
   fi
 }
 
@@ -103,8 +76,21 @@ pull_all_git_children() {
   fi
 }
 
-case "$fn" in
-  system:update)
+format_elapsed() {
+  local secs="$1"
+  local mins=$(( secs / 60 ))
+  local rem=$(( secs % 60 ))
+  if (( mins > 0 )); then
+    print -r -- "${mins}m ${rem}s"
+  else
+    print -r -- "${rem}s"
+  fi
+}
+
+case "$command" in
+
+  update)
+    local start_time=$SECONDS
     print -r -- "${COLOR_BOLD}${COLOR_INFO}>>> SYSTEM UPDATE STARTED${COLOR_RESET}"
 
     if command -v brew >/dev/null 2>&1; then
@@ -112,7 +98,6 @@ case "$fn" in
       brew update
       brew upgrade
 
-      # OPTIONAL: BREW CASK/APP STORE UPGRADES VIA brew-cask-upgrade (brew cu)
       if command -v brew-cask-upgrade >/dev/null 2>&1 || brew cu --help >/dev/null 2>&1; then
         print -r -- "${COLOR_INFO}>> brew cu --all --cleanup --include-mas --yes${COLOR_RESET}"
         brew cu --all --cleanup --include-mas --yes || true
@@ -137,62 +122,60 @@ case "$fn" in
       omz update --verbose || true
     fi
 
-    # UPDATE OMZ PLUGINS (IF CONFIGURED)
     if [[ -n "${OMZ_PLUGIN_ROOT:-}" ]]; then
       pull_all_git_children "${OMZ_PLUGIN_ROOT}" "OMZ plugins"
     fi
 
-    # UPDATE WORKSPACE TOOLS (IF CONFIGURED)
     if [[ -n "${WORKSPACE_TOOLS_ROOT:-}" ]]; then
       pull_all_git_children "${WORKSPACE_TOOLS_ROOT}" "tools"
     fi
 
-    # OPTIONAL: POST-UPDATE CLEANUP (BEST-EFFORT)
-    # THIS MIMICS YOUR LEGACY 'cleanup' ALIAS INTENT WITHOUT BEING DESTRUCTIVE BY DEFAULT.
     if [[ "${SYSTEM_UPDATE_RUN_CLEANUP:-false}" == "true" ]]; then
       print -r -- "${COLOR_INFO}>> post-update cleanup (system clean all)${COLOR_RESET}"
       "$0" clean all || true
     fi
 
-    print -r -- "${COLOR_BOLD}${COLOR_SUCCESS}>>> SYSTEM UPDATE DONE${COLOR_RESET}";;
+    local elapsed=$(( SECONDS - start_time ))
+    print -r -- "${COLOR_BOLD}${COLOR_SUCCESS}>>> SYSTEM UPDATE DONE ($(format_elapsed $elapsed))${COLOR_RESET}"
+    ;;
 
-  system:reboot)
-    print -r -- "♻️ Rebooting system..."
+  reboot)
+    print -r -- "${COLOR_INFO}>> rebooting system${COLOR_RESET}"
     sudo shutdown -r now
     ;;
 
-  system:lock)
+  lock)
     print -r -- "${COLOR_INFO}>> locking screen${COLOR_RESET}"
     /System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend
     ;;
 
-  system:clear-dns)
+  clear-dns)
     print -r -- "${COLOR_INFO}>> clearing DNS cache${COLOR_RESET}"
     sudo killall -HUP mDNSResponder
     ;;
 
-  system:copy-ssh-key)
+  copy-ssh-key)
     print -r -- "${COLOR_INFO}>> copying public SSH key to clipboard${COLOR_RESET}"
-    if [[ -f "$HOME/.ssh/id_rsa.pub" ]]; then
-      pbcopy < "$HOME/.ssh/id_rsa.pub"
-    elif [[ -f "$HOME/.ssh/id_ed25519.pub" ]]; then
+    if [[ -f "$HOME/.ssh/id_ed25519.pub" ]]; then
       pbcopy < "$HOME/.ssh/id_ed25519.pub"
+    elif [[ -f "$HOME/.ssh/id_rsa.pub" ]]; then
+      pbcopy < "$HOME/.ssh/id_rsa.pub"
     else
-      print -r -- "${COLOR_ERR}!! no public key found in ~/.ssh${COLOR_RESET}" >&2
+      print_error "no public key found in ~/.ssh"
       exit 1
     fi
     ;;
 
-  system:print-cancel)
+  print-cancel)
     print -r -- "${COLOR_INFO}>> cancelling all print jobs${COLOR_RESET}"
     cancel -a
     ;;
 
-  system:clean)
+  clean)
     target="${1:-}"
     if [[ -z "$target" ]]; then
-      print -r -- "${COLOR_ERR}!! missing cleanup target${COLOR_RESET}" >&2
-      print -r -- "Try: mac system clean all" >&2
+      print_error "missing cleanup target"
+      print_error "TRY: mac system clean all"
       exit 2
     fi
 
@@ -229,15 +212,16 @@ case "$fn" in
         "$0" clean docker
         ;;
       *)
-        print -r -- "${COLOR_WARN}!! unknown cleanup target: $target${COLOR_RESET}" >&2
+        print_warn "unknown cleanup target: $target"
         exit 2
         ;;
     esac
     ;;
 
   *)
-    print -r -- "${COLOR_ERR}!! unknown system subcommand: ${command}${COLOR_RESET}" >&2
-    print -r -- "Try: mac system --help" >&2
+    print_error "UNKNOWN SYSTEM SUBCOMMAND: ${command}"
+    print_error "TRY: mac system --help"
     exit 2
     ;;
+
 esac

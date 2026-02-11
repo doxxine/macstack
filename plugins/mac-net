@@ -1,15 +1,11 @@
 #!/bin/zsh
 # MACSTACK PLUGIN: mac-net
-# STYLE: UNIX / SNAKE_CASE
+# @describe: Network helpers (ip, dns, routes)
 
 set -euo pipefail
 
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-MACROOT="$(cd "$MACROOT/.." && pwd)"
-
-[[ -f "$MACROOT/lib/shared.zsh" ]] || { echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2; exit 1; }
-source "$MACROOT/lib/shared.zsh"
+: "${MACROOT:=$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)}"
+source "$MACROOT/lib/bootstrap.zsh"
 macstack_load_config || true
 
 command="${1:-}"
@@ -27,25 +23,25 @@ EOF
 fi
 
 shift
-fn="net:${command}"
 
-case "$fn" in
-  net:ip)
+case "$command" in
+
+  ip)
     print -r -- "${COLOR_INFO}>> public IP${COLOR_RESET}"
     curl -s https://ifconfig.me && echo
     ;;
 
-  net:dns)
+  dns)
     print -r -- "${COLOR_INFO}>> DNS servers${COLOR_RESET}"
     scutil --dns | grep 'nameserver\[[0-9]*\]' | head -n 10
     ;;
 
-  net:flush-dns)
+  flush-dns)
     print -r -- "${COLOR_INFO}>> flushing DNS cache${COLOR_RESET}"
     sudo killall -HUP mDNSResponder
     ;;
 
-  net:routes)
+  routes)
     print -r -- "${COLOR_INFO}>> routes${COLOR_RESET}"
     netstat -rn
     ;;
@@ -55,4 +51,5 @@ case "$fn" in
     print_error "TRY: mac net --help"
     exit 2
     ;;
+
 esac

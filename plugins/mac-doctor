@@ -1,32 +1,16 @@
 #!/bin/zsh
 # MACSTACK PLUGIN: mac-doctor
-# STYLE: UNIX / SNAKE_CASE
-# SHELL: ZSH
-#
-# PURPOSE:
-# - QUICK SANITY CHECKS (DEFAULT)
-# - AUDIT MODE (--audit): XDG + WORKSPACE + CONFIG + BASE TOOLCHAIN
+# @describe: System health checks
 
 set -euo pipefail
 
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-MACROOT="$(cd "$MACROOT/.." && pwd)"
-
-# LOAD SHARED LIB (REQUIRED)
-if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-  exit 1
-fi
-source "$MACROOT/lib/shared.zsh"
-
-# LOAD CONFIG (DEV + XDG; OPTIONAL)
+: "${MACROOT:=$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)}"
+source "$MACROOT/lib/bootstrap.zsh"
 macstack_load_config || true
 
-MODE="${1:-}"
+mode="${1:-}"
 
-if [[ "$MODE" == "--help" || "$MODE" == "-h" ]]; then
+if [[ "$mode" == "--help" || "$mode" == "-h" ]]; then
   cat <<'EOF'
 mac doctor — sanity checks
 
@@ -55,74 +39,74 @@ fi
 FAIL=0
 
 # ── OUTPUT HELPERS ───────────────────────────────────────────────────────────
-Ok()   { print -r -- "${COLOR_SUCCESS}OK${COLOR_RESET}   $*"; }
-Warn() { print -u2 -r -- "${COLOR_WARN}WARN${COLOR_RESET} $*"; FAIL=1; }
-Bad()  { print -u2 -r -- "${COLOR_ERR}FAIL${COLOR_RESET} $*"; FAIL=1; }
+ok()   { print -r -- "${COLOR_SUCCESS}OK${COLOR_RESET}   $*"; }
+warn() { print -u2 -r -- "${COLOR_WARN}WARN${COLOR_RESET} $*"; FAIL=1; }
+bad()  { print -u2 -r -- "${COLOR_ERR}FAIL${COLOR_RESET} $*"; FAIL=1; }
 
-Header() {
-  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
-  print -r -- "${COLOR_BOLD}🩺  MAC DOCTOR${COLOR_RESET}  ${COLOR_INFO}${1:-}${COLOR_RESET}"
-  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+header() {
+  print -r -- "${COLOR_INFO}#-------------------------------------------------------------#${COLOR_RESET}"
+  print -r -- "${COLOR_BOLD}  MAC DOCTOR${COLOR_RESET}  ${COLOR_INFO}${1:-}${COLOR_RESET}"
+  print -r -- "${COLOR_INFO}#-------------------------------------------------------------#${COLOR_RESET}"
 }
 
-HasCmd() { command -v "$1" >/dev/null 2>&1; }
+has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
-CheckDir() {
-  local Path="$1"
-  local Label="$2"
-  if [[ -d "$Path" ]]; then Ok "$Label: $Path"; else Bad "$Label: missing ($Path)"; fi
+check_dir() {
+  local p="$1"
+  local lbl="$2"
+  if [[ -d "$p" ]]; then ok "$lbl: $p"; else bad "$lbl: missing ($p)"; fi
 }
 
-CheckFile() {
-  local Path="$1"
-  local Label="$2"
-  if [[ -f "$Path" ]]; then Ok "$Label: $Path"; else Warn "$Label: missing ($Path)"; fi
+check_file() {
+  local p="$1"
+  local lbl="$2"
+  if [[ -f "$p" ]]; then ok "$lbl: $p"; else warn "$lbl: missing ($p)"; fi
 }
 
-CheckCmd() {
-  local Cmd="$1"
-  if HasCmd "$Cmd"; then Ok "cmd: $Cmd"; else Warn "cmd: $Cmd missing"; fi
+check_cmd() {
+  local name="$1"
+  if has_cmd "$name"; then ok "cmd: $name"; else warn "cmd: $name missing"; fi
 }
 
-CheckPathContains() {
-  local Needle="$1"
-  if print -r -- "$PATH" | tr ':' '\n' | grep -qx "$Needle"; then
-    Ok "PATH contains: $Needle"
+check_path_contains() {
+  local needle="$1"
+  if print -r -- "$PATH" | tr ':' '\n' | grep -qx "$needle"; then
+    ok "PATH contains: $needle"
   else
-    Bad "PATH missing: $Needle"
+    bad "PATH missing: $needle"
   fi
 }
 
 # ── QUICK CHECKS ─────────────────────────────────────────────────────────────
-Quick() {
-  Header "QUICK"
+quick_checks() {
+  header "QUICK"
 
-  CheckFile "$MACROOT/lib/shared.zsh" "shared lib"
+  check_file "$MACROOT/lib/shared.zsh" "shared lib"
 
   if cfg="$(macstack_config_path 2>/dev/null)"; then
-    Ok "config: $cfg"
+    ok "config: $cfg"
   else
-    Warn "config: not found (run: mac init)"
+    warn "config: not found (run: mac init)"
   fi
 
-  CheckCmd "brew"
-  CheckCmd "git"
-  CheckCmd "gh"
-  CheckCmd "mas"
-  CheckCmd "chezmoi"
-  CheckCmd "direnv"
-  CheckCmd "zoxide"
-  CheckCmd "fzf"
-  CheckCmd "rg"
-  CheckCmd "fd"
-  CheckCmd "jq"
-  CheckCmd "gpg"
-  CheckCmd "pinentry-mac"
+  check_cmd "brew"
+  check_cmd "git"
+  check_cmd "gh"
+  check_cmd "mas"
+  check_cmd "chezmoi"
+  check_cmd "direnv"
+  check_cmd "zoxide"
+  check_cmd "fzf"
+  check_cmd "rg"
+  check_cmd "fd"
+  check_cmd "jq"
+  check_cmd "gpg"
+  check_cmd "pinentry-mac"
 }
 
 # ── AUDIT CHECKS ─────────────────────────────────────────────────────────────
-Audit() {
-  Header "AUDIT (XDG + WORKSPACE + CHEZMOI + BASE TOOLS)"
+audit_checks() {
+  header "AUDIT (XDG + WORKSPACE + CHEZMOI + BASE TOOLS)"
 
   # XDG BASE
   local xdg_config="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -130,85 +114,84 @@ Audit() {
   local xdg_cache="${XDG_CACHE_HOME:-$HOME/.cache}"
   local xdg_bin="$HOME/.local/bin"
 
-  CheckDir "$xdg_config" "XDG_CONFIG_HOME"
-  CheckDir "$xdg_data" "XDG_DATA_HOME"
-  CheckDir "$xdg_cache" "XDG_CACHE_HOME"
-  CheckDir "$xdg_bin" "XDG BIN"
-  CheckPathContains "$xdg_bin"
+  check_dir "$xdg_config" "XDG_CONFIG_HOME"
+  check_dir "$xdg_data" "XDG_DATA_HOME"
+  check_dir "$xdg_cache" "XDG_CACHE_HOME"
+  check_dir "$xdg_bin" "XDG BIN"
+  check_path_contains "$xdg_bin"
 
   # WORKSPACE LAYOUT
   local ws="$HOME/workspace"
-  CheckDir "$ws" "workspace"
-  CheckDir "$ws/tools" "workspace/tools"
-  CheckDir "$ws/projects" "workspace/projects"
-  CheckDir "$ws/raw" "workspace/raw"
-  CheckDir "$ws/raw/inbox" "workspace/raw/inbox"
-  CheckDir "$ws/raw/export" "workspace/raw/export"
-  CheckDir "$ws/org" "workspace/org"
-  CheckDir "$ws/archive" "workspace/archive"
-  CheckDir "$ws/temp" "workspace/temp"
+  check_dir "$ws" "workspace"
+  check_dir "$ws/tools" "workspace/tools"
+  check_dir "$ws/projects" "workspace/projects"
+  check_dir "$ws/raw" "workspace/raw"
+  check_dir "$ws/raw/inbox" "workspace/raw/inbox"
+  check_dir "$ws/raw/export" "workspace/raw/export"
+  check_dir "$ws/org" "workspace/org"
+  check_dir "$ws/archive" "workspace/archive"
+  check_dir "$ws/temp" "workspace/temp"
 
   # REDUNDANCY HINTS
-  [[ -d "$ws/share" ]] && Warn "redundant: workspace/share exists (prefer: ~/.local/share)" || Ok "workspace/share: not present"
-  [[ -d "$ws/.files" ]] && Warn "redundant: workspace/.files exists (prefer: config repo)" || Ok "workspace/.files: not present"
-  [[ -d "$ws/setup" ]] && Warn "redundant: workspace/setup exists (prefer: bootstrap repo)" || Ok "workspace/setup: not present"
+  [[ -d "$ws/share" ]] && warn "redundant: workspace/share exists (prefer: ~/.local/share)" || ok "workspace/share: not present"
+  [[ -d "$ws/.files" ]] && warn "redundant: workspace/.files exists (prefer: config repo)" || ok "workspace/.files: not present"
+  [[ -d "$ws/setup" ]] && warn "redundant: workspace/setup exists (prefer: bootstrap repo)" || ok "workspace/setup: not present"
 
   # CHEZMOI STATE
-  if HasCmd "chezmoi"; then
-    Ok "chezmoi: installed"
+  if has_cmd "chezmoi"; then
+    ok "chezmoi: installed"
     local cfg_dir="$HOME/.config/chezmoi"
     local toml="$cfg_dir/chezmoi.toml"
     local yaml="$cfg_dir/chezmoi.yaml"
 
     if [[ -f "$toml" && -f "$yaml" ]]; then
-      Warn "chezmoi config: multiple files (chezmoi.toml + chezmoi.yaml) — keep only one"
+      warn "chezmoi config: multiple files (chezmoi.toml + chezmoi.yaml) — keep only one"
     else
-      Ok "chezmoi config: single file"
+      ok "chezmoi config: single file"
     fi
 
-    # CHECK sourceDir REACHABILITY (BEST EFFORT)
     if [[ -f "$toml" ]]; then
       local src
       src="$(grep -E '^sourceDir' "$toml" 2>/dev/null | head -n 1 | sed 's/.*= *"//; s/"$//')"
       if [[ -n "$src" && -d "$src" ]]; then
-        Ok "chezmoi sourceDir: $src"
+        ok "chezmoi sourceDir: $src"
       elif [[ -n "$src" ]]; then
-        Warn "chezmoi sourceDir: missing ($src)"
+        warn "chezmoi sourceDir: missing ($src)"
       else
-        Warn "chezmoi sourceDir: not set in toml"
+        warn "chezmoi sourceDir: not set in toml"
       fi
     fi
   else
-    Warn "chezmoi: missing (bootstrap should install it)"
+    warn "chezmoi: missing (bootstrap should install it)"
   fi
 
-  # BASE TOOLS (COMMAND-LEVEL)
-  CheckCmd "brew"
-  CheckCmd "git"
-  CheckCmd "gh"
-  CheckCmd "mas"
-  CheckCmd "curl"
-  CheckCmd "zsh"
-  CheckCmd "direnv"
-  CheckCmd "zoxide"
-  CheckCmd "fzf"
-  CheckCmd "rg"
-  CheckCmd "fd"
-  CheckCmd "jq"
-  CheckCmd "gpg"
-  CheckCmd "pinentry-mac"
+  # BASE TOOLS
+  check_cmd "brew"
+  check_cmd "git"
+  check_cmd "gh"
+  check_cmd "mas"
+  check_cmd "curl"
+  check_cmd "zsh"
+  check_cmd "direnv"
+  check_cmd "zoxide"
+  check_cmd "fzf"
+  check_cmd "rg"
+  check_cmd "fd"
+  check_cmd "jq"
+  check_cmd "gpg"
+  check_cmd "pinentry-mac"
 
-  # OPTIONAL BUT COMMON (KEEP AS WARN ONLY)
-  HasCmd "pandoc" && Ok "cmd: pandoc" || Warn "cmd: pandoc missing"
-  HasCmd "weasyprint" && Ok "cmd: weasyprint" || Warn "cmd: weasyprint missing"
-  HasCmd "tag" && Ok "cmd: tag" || Warn "cmd: tag missing"
-  HasCmd "dotnet" && Ok "cmd: dotnet" || Warn "cmd: dotnet missing"
+  # OPTIONAL BUT COMMON
+  has_cmd "pandoc" && ok "cmd: pandoc" || warn "cmd: pandoc missing"
+  has_cmd "weasyprint" && ok "cmd: weasyprint" || warn "cmd: weasyprint missing"
+  has_cmd "tag" && ok "cmd: tag" || warn "cmd: tag missing"
+  has_cmd "dotnet" && ok "cmd: dotnet" || warn "cmd: dotnet missing"
 }
 
-if [[ "$MODE" == "--audit" ]]; then
-  Audit
+if [[ "$mode" == "--audit" ]]; then
+  audit_checks
 else
-  Quick
+  quick_checks
 fi
 
 exit "$FAIL"

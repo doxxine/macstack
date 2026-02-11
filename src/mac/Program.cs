@@ -32,26 +32,15 @@ internal static class Program
 
     private static int Help(string[] args)
     {
-        // UNIX/CLI INTENT:
-        // - PREFER STYLED HELP PLUGIN IF PRESENT (mac-help)
-        // - FALL BACK TO BUILT-IN HELP OTHERWISE
-        //
-        // BEHAVIOR:
-        // - mac help            -> styled overview (if plugin exists) else built-in help
-        // - mac help plugins    -> plugin list (handled by mac-help plugin if present)
-        // - mac help <cmd>      -> executes plugin help via router (this function), if plugin exists.
-
         if (TryExecHelpPlugin(args, out var exitCode))
             return exitCode;
 
-        // FALLBACK: BUILT-IN HELP (MINIMAL)
         if (args.Length == 0)
         {
             PrintHelp();
             return 0;
         }
 
-        // mac help <cmd> -> run <cmd> --help (plugin or built-in)
         var target = args[0];
         if (target is "help" or "version" or "list" or "plugins")
         {
@@ -64,8 +53,6 @@ internal static class Program
 
     private static bool TryExecHelpPlugin(string[] args, out int exitCode)
     {
-        // ONLY EXECUTE mac-help IF IT EXISTS AS A PLUGIN.
-        // THIS KEEPS THE ROUTER MINIMAL AND ALLOWS STYLED UX IN SHELL.
         var pluginPath = ResolvePluginPath("help");
         if (pluginPath is null)
         {
@@ -79,8 +66,6 @@ internal static class Program
 
     private static int List(string[] args)
     {
-        // mac list            -> built-ins + plugins
-        // mac list plugins    -> plugins only
         var pluginsOnly = args.Length > 0 && args[0] == "plugins";
 
         if (!pluginsOnly)
@@ -100,8 +85,14 @@ internal static class Program
             return 0;
         }
 
-        foreach (var p in plugins)
-            Console.WriteLine($"  {p}");
+        var maxLen = plugins.Max(p => p.Name.Length);
+        foreach (var (name, desc) in plugins)
+        {
+            if (desc is not null)
+                Console.WriteLine($"  {name.PadRight(maxLen + 2)}{desc}");
+            else
+                Console.WriteLine($"  {name}");
+        }
 
         return 0;
     }
@@ -127,7 +118,6 @@ internal static class Program
         var pluginName = $"mac-{cmd}";
         var macroot = GetMacRoot();
 
-        // 1) REPO-LOCAL: <MACROOT>/plugins/mac-<cmd>
         if (!string.IsNullOrWhiteSpace(macroot))
         {
             var repoPlugin = Path.Combine(macroot, "plugins", pluginName);
@@ -135,7 +125,6 @@ internal static class Program
                 return repoPlugin;
         }
 
-        // 2) PATH: mac-<cmd>
         return FindOnPath(pluginName);
     }
 
@@ -151,7 +140,6 @@ internal static class Program
         foreach (var a in args)
             p.StartInfo.ArgumentList.Add(a);
 
-        // FORWARD MACROOT FOR PLUGINS
         if (!string.IsNullOrWhiteSpace(macroot))
             p.StartInfo.Environment["MACROOT"] = macroot;
 
@@ -186,12 +174,10 @@ internal static class Program
 
     private static string? GetMacRoot()
     {
-        // 1) EXPLICIT ENV WINS
         var env = Environment.GetEnvironmentVariable("MACROOT");
         if (!string.IsNullOrWhiteSpace(env) && Directory.Exists(env))
             return env;
 
-        // 2) RESOLVE FROM EXECUTABLE LOCATION
         var exe = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(exe))
             return null;
@@ -200,7 +186,6 @@ internal static class Program
         if (string.IsNullOrWhiteSpace(exeDir))
             return null;
 
-        // DEV MODE: <repo>/.bin/mac -> repo is parent of .bin
         if (Path.GetFileName(exeDir) == ".bin")
         {
             var repo = Directory.GetParent(exeDir);
@@ -208,7 +193,6 @@ internal static class Program
                 return repo.FullName;
         }
 
-        // INSTALLED MODE (OPTIONAL): <root>/plugins next to executable
         if (Directory.Exists(Path.Combine(exeDir, "plugins")))
             return exeDir;
 
@@ -234,12 +218,32 @@ internal static class Program
         return null;
     }
 
-    private static List<string> DiscoverPlugins()
+    private static string? ReadPluginDescription(string filePath)
     {
-        var results = new HashSet<string>(StringComparer.Ordinal);
+        try
+        {
+            using var reader = new StreamReader(filePath);
+            for (var i = 0; i < 10; i++)
+            {
+                var line = reader.ReadLine();
+                if (line is null) break;
+                if (line.StartsWith("# @describe:", StringComparison.Ordinal))
+                    return line["# @describe:".Length..].Trim();
+            }
+        }
+        catch
+        {
+            // IGNORE UNREADABLE FILES
+        }
+
+        return null;
+    }
+
+    private static List<(string Name, string? Description)> DiscoverPlugins()
+    {
+        var results = new Dictionary<string, string>(StringComparer.Ordinal);
         var macroot = GetMacRoot();
 
-        // 1) REPO PLUGINS
         if (!string.IsNullOrWhiteSpace(macroot))
         {
             var dir = Path.Combine(macroot, "plugins");
@@ -251,13 +255,12 @@ internal static class Program
 
                     var name = Path.GetFileName(file);
                     if (name.StartsWith("mac-", StringComparison.Ordinal))
-                        results.Add(name["mac-".Length..]);
+                        results.TryAdd(name["mac-".Length..], file);
                 }
         }
 
-        // 2) PATH PLUGINS
         var path = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrWhiteSpace(path)) return results.OrderBy(x => x, StringComparer.Ordinal).ToList();
+        if (!string.IsNullOrWhiteSpace(path))
         {
             foreach (var dir in path.Split(Path.PathSeparator))
             {
@@ -273,7 +276,7 @@ internal static class Program
 
                         var name = Path.GetFileName(file);
                         if (name.StartsWith("mac-", StringComparison.Ordinal))
-                            results.Add(name["mac-".Length..]);
+                            results.TryAdd(name["mac-".Length..], file);
                     }
                 }
                 catch
@@ -283,7 +286,10 @@ internal static class Program
             }
         }
 
-        return results.OrderBy(x => x, StringComparer.Ordinal).ToList();
+        return results
+            .OrderBy(x => x.Key, StringComparer.Ordinal)
+            .Select(x => (x.Key, ReadPluginDescription(x.Value)))
+            .ToList();
     }
 
     private static void PrintBuiltinHelp(string name)
