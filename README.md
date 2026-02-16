@@ -1,211 +1,264 @@
-# ⚙️ MacStack
+<p align="center">
+  <code>▰▰▰ MACSTACK ▰▰▰</code><br/>
+  <strong>v0.2.0 · macOS · ARM64 · Native AOT</strong>
+</p>
 
-*A modular CLI toolkit for semantic workflows, clean document processing, and predictable automation on macOS.*
+<p align="center">
+  <em>A modular CLI toolkit for semantic workflows, clean document processing, and predictable automation on macOS.</em>
+</p>
 
-## Overview
-
-MacStack is a lightweight, extensible command-line toolkit designed to bring clarity and structure to digital
-workflows.  
-It focuses on **semantic document handling**, **export pipelines**, **template-driven creation**, and **automation
-patterns** that help users work more efficiently and consistently — without enforcing a specific workspace or folder
-philosophy.
-
-MacStack does not manage your system, install tools, or define your workspace.  
-Instead, it acts as a **precision instrument** within whatever environment you choose — a clean, predictable layer for
-file processing and workflow automation.
-
----
-
-## ✨ Core Principles
-
-### **1. Predictable, Semantic Outputs**
-
-Files should be *meaningful* the moment they are created.  
-MacStack generates consistent semantic filenames, applies metadata, and helps maintain clarity across complex workflows.
-
-### **2. Template-Driven Workflows**
-
-Documents, reports, notes, and structured artefacts often follow the same patterns.  
-MacStack enables reproducible, frontmatter-aware template generation — flexible enough for personal notes, professional
-documentation, and everything in between.
-
-### **3. Clean Separation of Concerns**
-
-MacStack avoids assumptions about your system and your workspace.  
-It operates as a **standalone CLI**, not as a bootstrap mechanism or a configuration manager.
-
-Those responsibilities belong to other layers such as Workspace-Bootstrap or your personal dotfiles system.
-
-### **4. Extensibility Through Plugins**
-
-MacStack is built around a modular, plugin-based architecture.  
-Every command (`export`, `new`, `doctor`, …) is isolated, composable, and easy to extend.
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-macOS-black?style=flat-square&logo=apple" />
+  <img src="https://img.shields.io/badge/arch-ARM64-blueviolet?style=flat-square" />
+  <img src="https://img.shields.io/badge/runtime-.NET_10_AOT-512bd4?style=flat-square&logo=dotnet" />
+  <img src="https://img.shields.io/badge/plugins-zsh-4EAA25?style=flat-square&logo=gnubash" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
+</p>
 
 ---
 
-## 🛠️ What MacStack Provides
+## ⚡ TL;DR
 
-MacStack focuses on structured, automation-friendly workflows:
+```
+mac <command> [args]        # that's it. unix-style. no magic.
+```
 
-### **✔ Semantic File Processing**
-
-- Semantic filename generation
-- Automatic tagging
-- Hash-based deduplication patterns
-- Frontmatter awareness
-
-### **✔ Export Pipelines**
-
-- Markdown → PDF (Pandoc)
-- HTML → PDF (WeasyPrint)
-- Layout, orientation, metadata, and styling controls
-- Temporary or final export destinations
-
-### **✔ Template Engine**
-
-- Create new documents based on user-defined templates
-- YAML frontmatter injection
-- Arc42, meeting notes, reports — or any structure you define
-- Fully user overrideable (`~/.config/macstack/templates/`)
-
-### **✔ Diagnostic & Utility Commands**
-
-- `mac doctor` checks system state and prerequisites
-- `mac backup` (optional) for config backups
-- Modular plugin architecture for future workflows
+MacStack is a **native AOT binary** that routes to **discoverable Zsh plugins** — following the same model as `git` and `kubectl`. No framework. No runtime. No daemon. Just a fast, composable toolchain.
 
 ---
 
-## 🧩 What MacStack Is *Not*
+## 🧬 Architecture
 
-MacStack deliberately avoids:
+```
+┌─────────────────────────────────────────────────┐
+│                   mac (binary)                   │
+│          Native AOT · C# · .NET 10              │
+│         ┌──────────────────────────┐             │
+│         │  parse → discover → exec │             │
+│         └──────────┬───────────────┘             │
+│                    │                             │
+│    ┌───────────────┼───────────────┐             │
+│    ▼               ▼               ▼             │
+│  built-ins    plugins/*      $PATH/mac-*         │
+│  (help,ver,   (mac-export,   (3rd party)         │
+│   list)        mac-doctor…)                      │
+└─────────────────────────────────────────────────┘
+         │               │
+         ▼               ▼
+   bootstrap.zsh    shared.zsh
+         │
+         ▼
+   macstack.conf  (XDG-compliant)
+```
 
-- modifying your macOS system
-- installing dependencies
-- defining your workspace structure
-- managing dotfiles
-- acting as a bootstrapper
-
-These responsibilities belong to other tools or layers such as Workspace-Bootstrap, Homebrew, or chezmoi.
-
-MacStack focuses on being an **automation and workflow engine**, nothing more, nothing less.
-
----
-
-## 🤝 Integrations
-
-MacStack works elegantly with:
-
-- **Obsidian** (frontmatter-driven workflows, template generation)
-- **Workspace-Bootstrap** (structured environments)
-- **Pandoc / WeasyPrint** (export pipelines)
-- **macOS Finder tags**
-- **XDG-based config environments (`~/.config/macstack`)**
-
-But none of these integrations are required.  
-MacStack remains fully self-contained.
-
----
-
-## 🚦 Status
-
-MacStack is under active development.  
-The initial goals include:
-
-- finalizing the export engine
-- stabilizing template workflows
-- building a robust plugin architecture
-- providing a clean developer onboarding experience
-- documenting extension points
-
-Community feedback, ideas, and contributions are welcome.
-
----
-
-## 📄 License
-
-MacStack is open-source under the MIT License.
-
----
-
-## 🙌 Contributing
-
-Clear, well-structured, reproducible workflows matter.  
-If you believe the same — contributions, concepts, and discussions are always welcome.
-
-
----
-
-## Execution Model
-
-`mac` is a **native, Ahead‑Of‑Time compiled** command that acts as a thin Unix router.
-
-- No runtime dependency on .NET at execution time
-- Fast startup, predictable behavior
-- Small built‑ins, everything else is a plugin
-
-## Command Resolution (Unix / Git‑Style)
-
-MacStack follows the classic Unix convention:
+### 🔩 Resolution Order
 
 ```
 mac <command> [args]
+  │
+  ├─➊─ built-in?          → execute directly
+  ├─➋─ plugins/mac-<cmd>? → exec plugin
+  └─➌─ $PATH/mac-<cmd>?   → exec from PATH
+       └─ ✗ → exit 127
 ```
-
-Resolution order:
-
-1. Built‑in commands (`help`, `version`, `list`)
-2. Executables named `mac-<command>` in `<repo>/plugins/`
-3. Executables named `mac-<command>` found on `$PATH`
-
-This is the same model used by tools like `git` and `kubectl`.
-
-## Plugin Model
-
-Plugins are **real executables**, not scripts sourced into a shell.
-
-- Any language is allowed (zsh, sh, C#, Go, …)
-- Plugins must be executable
-- Help is exposed via `--help`
-- Exit codes follow Unix conventions
-
-Example:
-
-```
-plugins/mac-doctor
-plugins/mac-export
-```
-
-Invoked as:
-
-```
-mac doctor
-mac export
-```
-
-## Built‑ins
-
-```
-mac help
-mac help <command>
-mac version
-mac list
-```
-
-`mac list` enumerates all available commands (built‑ins + plugins).
-
-## Design Intent
-
-MacStack is intentionally **not**:
-
-- a framework
-- a monolithic CLI application
-- a cross‑platform abstraction layer
-
-It is a Unix toolchain that prefers:
-
-- composition over inheritance
-- executables over registries
-- conventions over configuration
 
 ---
+
+## 🧰 Commands
+
+### ⌂ Built-ins
+
+| Command | Description |
+|:--------|:------------|
+| `mac help [cmd]` | Styled help for any command |
+| `mac version` | Print version string |
+| `mac list` | Enumerate all available commands |
+
+### 🔌 Plugins
+
+| Plugin | Description | Deps |
+|:-------|:------------|:-----|
+| `mac export` | 📄 Document export — MD/HTML → PDF | `pandoc` `weasyprint` |
+| `mac doctor` | 🩺 System health checks & prerequisites | — |
+| `mac system` | 🔄 System updates & utilities | `brew` |
+| `mac git` | 🔀 Git shortcuts — wip, undo, reset | `git` |
+| `mac ssh` | 🔑 SSH helpers — pubkey, upload, sync | `ssh` `rsync` |
+| `mac net` | 🌐 Network helpers — ip, dns, routes | `curl` |
+| `mac tools` | 🛠 Utilities — uuid, serve, trim, convert | `python3` |
+| `mac coffee` | ☕ Caffeinate helpers — stay awake | — |
+| `mac completion` | 🧩 Generate shell completions | — |
+| `mac config` | ⚙️ Config diagnostics & resolution | — |
+| `mac init` | 📦 Initialize XDG config | — |
+| `mac emo` | 🎭 ASCII emotions → clipboard | — |
+| `mac finder` | 🗂 Open Finder at cwd | — |
+| `mac help` | 📖 Styled help router | — |
+| `mac license` | ⚖️ Display MIT license | — |
+
+---
+
+## 📄 Export Pipeline
+
+```
+                  ┌──────────┐
+  report.md ────▶ │  pandoc  │ ────▶  20260216_company_report.pdf
+                  └──────────┘
+                  ┌───────────┐
+  page.html ───▶ │ weasyprint │ ───▶  20260216_company_page.pdf
+                  └───────────┘
+
+  ✦ semantic filenames    ✦ configurable geometry
+  ✦ finder tagging        ✦ custom fonts & layouts
+```
+
+```bash
+mac export markdown report.md --title "Q4 Report" --company acme
+mac export html    page.html  --title "Dashboard"
+```
+
+---
+
+## ⚙️ Configuration
+
+```
+$MACSTACK_CONFIG                          ➊ env override
+$XDG_CONFIG_HOME/macstack/macstack.conf   ➋ user config (~/.config/…)
+<repo>/macstack.conf                      ➌ default
+```
+
+First match wins. Config is a plain Zsh-sourceable file — no YAML, no JSON, no surprises.
+
+```bash
+mac init          # bootstrap ~/.config/macstack/
+mac config path   # show resolved config path
+mac config print  # dump active config
+```
+
+---
+
+## 🏗 Build
+
+```bash
+./build/build.zsh                  # → .bin/mac (native AOT)
+```
+
+```
+build.zsh → dotnet tool restore → Cake → dotnet publish -r osx-arm64
+                                           │
+                                           ▼
+                                     .bin/mac  ← single binary, no runtime
+```
+
+| Target | What it does |
+|:-------|:-------------|
+| `clean` | Wipe `.bin/` and `dist/` |
+| `build` | Compile native AOT binary |
+| `release` | Stage + tar.gz + SHA256 |
+
+---
+
+## 🚀 Install
+
+```bash
+# from release archive
+tar -xzf macstack-0.2.0-darwin-arm64.tar.gz -C ~/.local/bin/
+mac init
+mac doctor    # verify everything works
+```
+
+### Requirements
+
+| | |
+|:--|:--|
+| **OS** | macOS 12+ (Monterey) |
+| **Arch** | Apple Silicon (ARM64) or x64 |
+| **Shell** | Zsh 5.x+ (ships with macOS) |
+| **Runtime** | None — Native AOT = zero dependencies |
+
+---
+
+## 🧠 Design Philosophy
+
+```
+  ┌─────────────────────────────────────────────────┐
+  │  composition  >  inheritance                     │
+  │  executables  >  registries                      │
+  │  conventions  >  configuration                   │
+  │  unix pipes   >  framework abstractions          │
+  │  fail fast    >  fail silently                   │
+  └─────────────────────────────────────────────────┘
+```
+
+MacStack is **not**:
+
+- ✗ a framework
+- ✗ a package manager
+- ✗ a bootstrapper
+- ✗ a dotfile manager
+- ✗ a cross-platform tool
+
+MacStack **is**:
+
+- ✓ a precision CLI instrument
+- ✓ a semantic workflow engine
+- ✓ a composable Unix toolchain
+- ✓ fast, predictable, transparent
+
+---
+
+## 🧩 Integrations
+
+Works with (but never requires):
+
+| Tool | How MacStack uses it |
+|:-----|:---------------------|
+| 🍺 **Homebrew** | `mac system update` orchestrates `brew upgrade` |
+| 📝 **Pandoc** | Markdown → PDF export engine |
+| 🎨 **WeasyPrint** | HTML → PDF rendering |
+| 🏠 **Chezmoi** | Optional dotfile pull during system update |
+| 🏷 **Finder Tags** | Auto-tagging exported files via `tag` |
+| 🔍 **ripgrep / fd / fzf** | Checked by `mac doctor`, used in workflows |
+
+---
+
+## 📊 Exit Codes
+
+```
+0   ✓  success
+1   ✗  generic failure
+2   ?  unknown subcommand
+126 ⊘  found but not executable
+127 ∅  command not found
+```
+
+---
+
+## 🔌 Plugin Contract
+
+Want to extend MacStack? Create an executable named `mac-<command>`:
+
+```bash
+#!/usr/bin/env zsh
+# @describe: What your plugin does
+source "$MACROOT/lib/bootstrap.zsh"
+macstack_load_config || { print_error "Config load failed"; exit 1; }
+
+case "${1:-}" in
+  --help)        print "Usage: mac yourcmd [args]" ;;
+  --description) print "What your plugin does" ;;
+  *)             # your logic here ;;
+esac
+```
+
+Drop it in `plugins/` — done. No registration, no manifest, no ceremony.
+
+---
+
+## 📜 License
+
+MIT — Copyright 2025 [MathAndEmotion](https://github.com/doxxine)
+
+---
+
+<p align="center">
+  <sub>built with obsessive minimalism · no telemetry · no runtime · no nonsense</sub>
+</p>
