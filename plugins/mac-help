@@ -1,34 +1,19 @@
 #!/bin/zsh
 # MACSTACK PLUGIN: mac-help
-# STYLE: UNIX / SNAKE_CASE
-# SHELL: ZSH
-#
-# PURPOSE:
-# - PRINT A STYLED HELP SCREEN (OVERVIEW)
-# - LIST PLUGINS
-# - SHOW HELP FOR A SPECIFIC COMMAND (PLUGIN OR BUILT-IN)
+# @describe: Styled help and command reference
 
 set -euo pipefail
 
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-MACROOT="$(cd "$MACROOT/.." && pwd)"
-
-# LOAD SHARED LIB
-if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-  exit 1
-fi
-source "$MACROOT/lib/shared.zsh"
+: "${MACROOT:=$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)}"
+source "$MACROOT/lib/bootstrap.zsh"
 macstack_load_config || true
 
 sub="${1:-}"
 
 print_header() {
-  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
-  print -r -- "${COLOR_BOLD}🧠  MACSTACK HELP${COLOR_RESET}"
-  print -r -- "${COLOR_INFO}#─────────────────────────────────────────────────────────────#${COLOR_RESET}"
+  print -r -- "${COLOR_INFO}#-------------------------------------------------------------#${COLOR_RESET}"
+  print -r -- "${COLOR_BOLD}  MACSTACK HELP${COLOR_RESET}"
+  print -r -- "${COLOR_INFO}#-------------------------------------------------------------#${COLOR_RESET}"
 }
 
 print_overview() {
@@ -82,18 +67,7 @@ list_plugins() {
 show_command_help() {
   local cmd="$1"
 
-  # USE ROUTER HELP (BUILT-IN) IF AVAILABLE.
-  # THIS WORKS FOR BOTH BUILT-INS AND PLUGINS.
-  if command -v mac >/dev/null 2>&1; then
-    print_header
-    print -r -- ""
-    print -r -- "${COLOR_BOLD}HELP: ${cmd}${COLOR_RESET}"
-    print -r -- ""
-    mac help "$cmd"
-    return $?
-  fi
-
-  # FALLBACK: EXECUTE PLUGIN DIRECTLY IF 'mac' NOT IN PATH
+  # Run the plugin directly with --help to avoid recursion through the router
   local plugin="$MACROOT/plugins/mac-${cmd}"
   if [[ -x "$plugin" ]]; then
     print_header

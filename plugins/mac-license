@@ -1,50 +1,45 @@
 #!/bin/zsh
 # MACSTACK PLUGIN: mac-license
-# STYLE: UNIX / SNAKE_CASE
-# SHELL: ZSH
+# @describe: Display MIT license
 
 set -euo pipefail
 
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-MACROOT="$(cd "$MACROOT/.." && pwd)"
+: "${MACROOT:=$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)}"
+source "$MACROOT/lib/bootstrap.zsh"
 
-# LOAD SHARED LIB
-if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-  exit 1
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+mac license — display MIT license
+
+Usage:
+  mac license
+EOF
+  exit 0
 fi
-source "$MACROOT/lib/shared.zsh"
-macstack_load_config || true
 
-MACSTACK_MODE="flat"
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)"
-source "$MACROOT/lib/shared.zsh"
-
-clear
-printf "\n"
-printf "${COLOR_INFO}#================================================================#\n"
-printf "#                         ${COLOR_BOLD}M A C S T A C K${COLOR_RESET}${COLOR_INFO}                        #\n"
-printf "#                        MIT LICENSE (2025)                      #\n"
-printf "#================================================================#${COLOR_RESET}\n\n"
-
-printf "${COLOR_SUCCESS}Copyright (c) 2025 MathAndEmotion${COLOR_RESET}\n\n"
-
-printf "${COLOR_INFO}Permission is hereby granted, free of charge, to any person obtaining a copy\n"
-printf "of this software and associated documentation files (the \"Software\"), to deal\n"
-printf "in the Software without restriction, including without limitation the rights\n"
-printf "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
-printf "copies of the Software, and to permit persons to whom the Software is\n"
-printf "furnished to do so, subject to the following conditions:\n\n"
-
-printf "The above copyright notice and this permission notice shall be included in all\n"
-printf "copies or substantial portions of the Software.\n\n"
-
-printf "${COLOR_WARN}THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
-printf "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
-printf "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
-printf "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
-printf "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
-printf "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
-printf "SOFTWARE.${COLOR_RESET}\n\n"
+print -r -- ""
+print -r -- "${COLOR_INFO}#================================================================#${COLOR_RESET}"
+print -r -- "${COLOR_INFO}#${COLOR_RESET}                         ${COLOR_BOLD}M A C S T A C K${COLOR_RESET}                        ${COLOR_INFO}#${COLOR_RESET}"
+print -r -- "${COLOR_INFO}#${COLOR_RESET}                        MIT LICENSE (2025)                      ${COLOR_INFO}#${COLOR_RESET}"
+print -r -- "${COLOR_INFO}#================================================================#${COLOR_RESET}"
+print -r -- ""
+print -r -- "${COLOR_SUCCESS}Copyright (c) 2025 MathAndEmotion${COLOR_RESET}"
+print -r -- ""
+print -r -- "${COLOR_INFO}Permission is hereby granted, free of charge, to any person obtaining a copy"
+print -r -- "of this software and associated documentation files (the \"Software\"), to deal"
+print -r -- "in the Software without restriction, including without limitation the rights"
+print -r -- "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell"
+print -r -- "copies of the Software, and to permit persons to whom the Software is"
+print -r -- "furnished to do so, subject to the following conditions:"
+print -r -- ""
+print -r -- "The above copyright notice and this permission notice shall be included in all"
+print -r -- "copies or substantial portions of the Software.${COLOR_RESET}"
+print -r -- ""
+print -r -- "${COLOR_WARN}THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR"
+print -r -- "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,"
+print -r -- "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE"
+print -r -- "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER"
+print -r -- "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,"
+print -r -- "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE"
+print -r -- "SOFTWARE.${COLOR_RESET}"
+print -r -- ""

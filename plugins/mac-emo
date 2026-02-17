@@ -1,22 +1,15 @@
 #!/bin/zsh
 # MACSTACK PLUGIN: mac-emo
-# STYLE: UNIX / SNAKE_CASE
-# SHELL: ZSH
+# @describe: Quick ASCII emotions (copied to clipboard)
 
 set -euo pipefail
 
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-MACROOT="$(cd "$MACROOT/.." && pwd)"
-
-source "$MACROOT/lib/shared.zsh"
-
-# LOAD CONFIG (DEV + XDG; OPTIONAL)
+: "${MACROOT:=$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)}"
+source "$MACROOT/lib/bootstrap.zsh"
 macstack_load_config || true
 
-Command="${1:-}"
-if [[ -z "$Command" || "$Command" == "help" || "$Command" == "--help" || "$Command" == "-h" ]]; then
+command="${1:-}"
+if [[ -z "$command" || "$command" == "help" || "$command" == "--help" || "$command" == "-h" ]]; then
   cat <<'EOF'
 mac emo — quick ASCII emotions (copied to clipboard)
 
@@ -37,64 +30,70 @@ EOF
   exit 0
 fi
 
-fn="emo:${Command}"
+shift
 
 print_and_copy() {
   local content="$1"
   local description="$2"
-  echo -e "${COLOR_INFO}>> $description${COLOR_RESET}"
-  echo "$content"
+  print -r -- "${COLOR_INFO}>> $description${COLOR_RESET}"
+  print -r -- "$content"
   printf "%s" "$content" | pbcopy
 }
 
-case "$fn" in
+case "$command" in
 
-  "emo:shrug")
+  shrug)
     print_and_copy "¯\\_(ツ)_/¯" "I don't know, man."
     ;;
 
-  "emo:flip-table")
+  flip-table)
     print_and_copy "(╯°□°）╯︵ ┻━┻" "Frustration unleashed."
     ;;
 
-  "emo:fight")
+  fight)
     print_and_copy "(ง'̀-'́)ง" "Ready to throw hands."
     ;;
 
-  "emo:lenny")
+  lenny)
     print_and_copy "( ͡° ͜ʖ ͡°)" "Suspicious energy."
     ;;
 
-  "emo:confused")
+  confused)
     print_and_copy "(°ロ°) !?" "Say what?"
     ;;
 
-  "emo:cry")
+  cry)
     print_and_copy "(ಥ﹏ಥ)" "Full emotional collapse."
     ;;
 
-  "emo:happy")
+  happy)
     print_and_copy "(＾▽＾)" "Wholesome joy."
     ;;
 
-  "emo:vibecheck")
-    print_and_copy "🌈✨ vibe check complete 🌈✨" "Mood scan complete."
+  vibecheck)
+    print_and_copy "vibe check complete" "Mood scan complete."
     ;;
 
-  "emo:sus")
-    print_and_copy "🧍‍♂️💬 that’s kinda sus bro" "Impostor energy."
+  sus)
+    print_and_copy "that's kinda sus bro" "Impostor energy."
     ;;
 
-  "emo:fireline")
-    print_and_copy "🔥🔥🔥 TODAY YOU 🔥🔥🔥" "You're on fire."
+  fireline)
+    print_and_copy "TODAY YOU" "You're on fire."
     ;;
 
-  "emo:comeon")
-    print_and_copy "👀👉👈 come on, just one more PR" "Soft pleading."
+  comeon)
+    print_and_copy "come on, just one more PR" "Soft pleading."
     ;;
 
-  "emo:nottoday")
-    print_and_copy "🙅‍♂️❌ not today Satan" "Hard pass."
+  nottoday)
+    print_and_copy "not today Satan" "Hard pass."
+    ;;
+
+  *)
+    print_error "UNKNOWN EMO SUBCOMMAND: ${command}"
+    print_error "TRY: mac emo --help"
+    exit 2
     ;;
 
 esac

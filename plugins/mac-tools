@@ -1,23 +1,11 @@
 #!/bin/zsh
 # MACSTACK PLUGIN: mac-tools
-# STYLE: UNIX / SNAKE_CASE
-# SHELL: ZSH
-#
-# PURPOSE: SMALL TOOLING UTILITIES (SERVE, FS, TRIM, UUID, TIMESTAMPS, ...)
+# @describe: Small utilities (uuid, serve, trim, convert)
 
 set -euo pipefail
 
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-MACROOT="$(cd "$MACROOT/.." && pwd)"
-
-# LOAD SHARED LIB
-if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-  exit 1
-fi
-source "$MACROOT/lib/shared.zsh"
+: "${MACROOT:=$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)}"
+source "$MACROOT/lib/bootstrap.zsh"
 macstack_load_config || true
 
 command="${1:-}"
@@ -31,7 +19,7 @@ Usage:
   mac tools trim <in> <from> <to> [out]
   mac tools convert-webp <outdir> <w> <h>
   mac tools mkexec <file>
-  mac tools retry <cmd...>
+  mac tools retry [max] <cmd...>
   mac tools uuid
   mac tools uuid-short
   mac tools timestamp
@@ -41,18 +29,17 @@ EOF
 fi
 
 shift
-fn="tools:${command}"
 
-case "$fn" in
-  tools:serve)
+case "$command" in
+
+  serve)
     port="${1:-8000}"
     print -r -- "${COLOR_INFO}>> serving on http://localhost:${port}${COLOR_RESET}"
     python3 -m http.server "$port"
     ;;
 
-  tools:fs)
+  fs)
     print -r -- "${COLOR_INFO}>> size of: ${*:-.[^.]* *}${COLOR_RESET}"
-    # NOTE: YOUR ORIGINAL DEFAULT EXPANSION WAS A BIT WEIRD; KEEP SIMPLE:
     if [[ "$#" -gt 0 ]]; then
       du -sh -- "$@"
     else
@@ -60,8 +47,7 @@ case "$fn" in
     fi
     ;;
 
-  tools:trim)
-    # ARGS: <in> <from> <to> [out]
+  trim)
     in="${1:-}"; from="${2:-}"; to="${3:-}"; out="${4:-}"
     [[ -n "$in" && -n "$from" && -n "$to" ]] || { print_error "USAGE: mac tools trim <in> <from> <to> [out]"; exit 2; }
     [[ -n "$out" ]] || out="trimmed-${in%.*}.${in##*.}"
@@ -69,8 +55,7 @@ case "$fn" in
     ffmpeg -ss "$from" -to "$to" -i "$in" -c copy "$out"
     ;;
 
-  tools:convert-webp)
-    # ARGS: <outdir> <w> <h>
+  convert-webp)
     outdir="${1:-}"; w="${2:-}"; h="${3:-}"
     [[ -n "$outdir" && -n "$w" && -n "$h" ]] || { print_error "USAGE: mac tools convert-webp <outdir> <w> <h>"; exit 2; }
     mkdir -p "$outdir"
@@ -78,41 +63,48 @@ case "$fn" in
     mogrify -path "$outdir" -resize "${w}x${h}" -format webp *.png
     ;;
 
-  tools:mkexec)
+  mkexec)
     file="${1:-}"
     [[ -n "$file" ]] || { print_error "USAGE: mac tools mkexec <file>"; exit 2; }
     print -r -- "${COLOR_INFO}>> chmod +x $file${COLOR_RESET}"
     chmod +x "$file"
     ;;
 
-  tools:retry)
-    [[ "$#" -gt 0 ]] || { print_error "USAGE: mac tools retry <cmd...>"; exit 2; }
-    print -r -- "${COLOR_INFO}>> retrying command until success${COLOR_RESET}"
+  retry)
+    # First arg is max retries if numeric, otherwise default to 10
+    local max=10
+    if [[ "${1:-}" =~ ^[0-9]+$ ]]; then
+      max="$1"
+      shift
+    fi
+    [[ "$#" -gt 0 ]] || { print_error "USAGE: mac tools retry [max] <cmd...>"; exit 2; }
+    print -r -- "${COLOR_INFO}>> retrying command (max $max attempts)${COLOR_RESET}"
     local n=0
     until "$@"; do
       ((n++))
+      if (( n >= max )); then
+        print_error "FAILED AFTER $max ATTEMPTS"
+        exit 1
+      fi
+      print -r -- "${COLOR_WARN}>> attempt $((n+1))/$max${COLOR_RESET}"
       sleep 1
     done
     ;;
 
-  tools:uuid)
-    print -r -- "${COLOR_INFO}>> generating UUID${COLOR_RESET}"
+  uuid)
     uuidgen
     ;;
 
-  tools:timestamp)
-    print -r -- "${COLOR_INFO}>> unix timestamp now:${COLOR_RESET}"
+  uuid-short)
+    uuidgen | cut -c1-8
+    ;;
+
+  timestamp)
     date +%s
     ;;
 
-  tools:timestamp-ms)
-    print -r -- "${COLOR_INFO}>> unix timestamp (ms) now:${COLOR_RESET}"
-    echo $(( $(date +%s%N) / 1000000 ))
-    ;;
-
-  tools:uuid-short)
-    print -r -- "${COLOR_INFO}>> short uuid:${COLOR_RESET}"
-    uuidgen | cut -c1-8
+  timestamp-ms)
+    print -r -- "$(( $(date +%s) * 1000 ))"
     ;;
 
   *)
@@ -120,4 +112,5 @@ case "$fn" in
     print_error "TRY: mac tools --help"
     exit 2
     ;;
+
 esac

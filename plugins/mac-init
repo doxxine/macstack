@@ -1,25 +1,12 @@
 #!/bin/zsh
 # MACSTACK PLUGIN: mac-init
-# STYLE: UNIX / SNAKE_CASE
-# SHELL: ZSH
+# @describe: Initialize XDG config
 
 set -euo pipefail
 
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-MACROOT="$(cd "$MACROOT/.." && pwd)"
-
-# LOAD SHARED LIB
-if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-  exit 1
-fi
-source "$MACROOT/lib/shared.zsh"
-
-# LOAD CONFIG (DEV + XDG; OPTIONAL)
+: "${MACROOT:=$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)}"
+source "$MACROOT/lib/bootstrap.zsh"
 macstack_load_config || true
-
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
@@ -46,26 +33,26 @@ EOF
   exit 0
 fi
 
-Force="0"
+force="0"
 if [[ "${1:-}" == "--force" ]]; then
-  Force="1"
+  force="1"
 fi
 
-RepoDefault="$MACROOT/macstack.conf"
+repo_default="$MACROOT/macstack.conf"
 
 macstack_ensure_xdg_config
 
-if [[ ! -f "$RepoDefault" ]]; then
-  print_error "MISSING REPO DEFAULT CONFIG: $RepoDefault"
+if [[ ! -f "$repo_default" ]]; then
+  print_error "MISSING REPO DEFAULT CONFIG: $repo_default"
   exit 1
 fi
 
-if [[ -f "$MACSTACK_CONFIG_FILE" && "$Force" != "1" ]]; then
+if [[ -f "$MACSTACK_CONFIG_FILE" && "$force" != "1" ]]; then
   print_warn "CONFIG EXISTS: $MACSTACK_CONFIG_FILE"
   print_warn "USE: mac init --force  (TO OVERWRITE)"
   exit 2
 fi
 
-cp -f "$RepoDefault" "$MACSTACK_CONFIG_FILE"
+cp -f "$repo_default" "$MACSTACK_CONFIG_FILE"
 print_success "WROTE: $MACSTACK_CONFIG_FILE"
 exit 0

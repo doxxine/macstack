@@ -1,29 +1,16 @@
 #!/bin/zsh
 # MACSTACK PLUGIN: mac-config
-# STYLE: UNIX / SNAKE_CASE
-# SHELL: ZSH
+# @describe: Config diagnostics and resolution
 
 set -euo pipefail
 
-# DO NOT CHANGE THIS LINE (MACROOT RESOLUTION VIA SYMLINK-AWARE READLINK)
-MACROOT="$(cd "$(dirname "$(readlink "$0" || echo "$0")")" && pwd)"
-# PLUGINS LIVE IN <REPO>/plugins, SO REPO ROOT IS PARENT
-MACROOT="$(cd "$MACROOT/.." && pwd)"
-
-# LOAD SHARED LIB
-if [[ ! -f "$MACROOT/lib/shared.zsh" ]]; then
-  echo "mac: missing shared lib: $MACROOT/lib/shared.zsh" >&2
-  exit 1
-fi
-source "$MACROOT/lib/shared.zsh"
-
-# LOAD CONFIG (DEV + XDG; OPTIONAL)
+: "${MACROOT:=$(cd "$(dirname "$(readlink "$0" || echo "$0")")/.." && pwd)}"
+source "$MACROOT/lib/bootstrap.zsh"
 macstack_load_config || true
 
+sub="${1:-path}"
 
-Sub="${1:-path}"
-
-if [[ "$Sub" == "--help" || "$Sub" == "-h" ]]; then
+if [[ "$sub" == "--help" || "$sub" == "-h" ]]; then
   cat <<'EOF'
 mac config — config diagnostics
 
@@ -44,23 +31,26 @@ EOF
   exit 0
 fi
 
-case "$Sub" in
+case "$sub" in
+
   path)
-    if Cfg="$(macstack_config_path)"; then
-      print -r -- "$Cfg"
+    if cfg="$(macstack_config_path)"; then
+      print -r -- "$cfg"
       exit 0
     fi
     print_warn "CONFIG NOT FOUND"
     exit 1
     ;;
+
   print)
-    if Cfg="$(macstack_config_path)"; then
-      cat -- "$Cfg"
+    if cfg="$(macstack_config_path)"; then
+      cat -- "$cfg"
       exit 0
     fi
     print_warn "CONFIG NOT FOUND"
     exit 1
     ;;
+
   explain)
     print_info "XDG_CONFIG_HOME: ${XDG_CONFIG_HOME}"
     print_info "MACSTACK_CONFIG_DIR: ${MACSTACK_CONFIG_DIR}"
@@ -71,9 +61,11 @@ case "$Sub" in
     macstack_print_config_source || true
     exit 0
     ;;
+
   *)
-    print_error "UNKNOWN SUBCOMMAND: $Sub"
+    print_error "UNKNOWN SUBCOMMAND: $sub"
     print_error "TRY: mac config --help"
     exit 2
     ;;
+
 esac
